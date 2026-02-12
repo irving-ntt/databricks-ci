@@ -83,12 +83,40 @@ jobs:
           echo "No se encontró workflow existente con nombre: $WORKFLOW_NAME"
         fi
     
+    - name: Get existing cluster ID
+      run: |
+        DEST_HOST=${{ secrets.DATABRICKS_ORIGIN_HOST }}
+        DEST_TOKEN=${{ secrets.DATABRICKS_ORIGIN_TOKEN }}
+        CLUSTER_NAME="Serverless"
+        
+        echo "Buscando cluster existente: $CLUSTER_NAME"
+        
+        # Obtener lista de clusters
+        clusters_response=$(curl -s -X GET \
+          -H "Authorization: Bearer $DEST_TOKEN" \
+          "$DEST_HOST/api/2.0/clusters/list")
+        
+        echo "Clusters response: $clusters_response"
+        
+        # Extraer cluster_id del cluster especificado
+        cluster_id=$(echo "$clusters_response" | jq -r --arg name "$CLUSTER_NAME" '.clusters[]? | select(.cluster_name == $name) | .cluster_id')
+        
+        if [ "$cluster_id" != "" ] && [ "$cluster_id" != "null" ]; then
+          echo "Cluster encontrado: $CLUSTER_NAME con ID: $cluster_id"
+          echo "CLUSTER_ID=$cluster_id" >> $GITHUB_ENV
+        else
+          echo "No se encontró el cluster: $CLUSTER_NAME"
+          echo "Clusters disponibles:"
+          echo "$clusters_response" | jq -r '.clusters[]? | .cluster_name'
+          exit 1
+        fi
+    
     - name: Create Databricks Workflow WF_ADB
       run: |
         DEST_HOST=${{ secrets.DATABRICKS_ORIGIN_HOST }}
         DEST_TOKEN=${{ secrets.DATABRICKS_ORIGIN_TOKEN }}
         DEST_BASE="/py/scripts/main"
-        CLUSTER_ID="fb6fc5654cef2deb"
+        CLUSTER_ID="${{ env.CLUSTER_ID }}"
         
         echo "Creando workflow: WF_ADB con cluster existente ID: $CLUSTER_ID"
         
