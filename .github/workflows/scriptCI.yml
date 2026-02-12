@@ -87,7 +87,7 @@ jobs:
       run: |
         DEST_HOST=${{ secrets.DATABRICKS_ORIGIN_HOST }}
         DEST_TOKEN=${{ secrets.DATABRICKS_ORIGIN_TOKEN }}
-        CLUSTER_NAME="Serverless Starter Warehouse"
+        CLUSTER_NAME="dbc-c7a4e003-9895.cloud.databricks.com"
         
         echo "Buscando cluster existente: $CLUSTER_NAME"
         
