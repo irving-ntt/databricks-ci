@@ -148,7 +148,7 @@ jobs:
                 "source": "WORKSPACE",
                 "base_parameters": {
                   "container": "raw",
-                  "catalogo": "catalog_smartdata",
+                  "catalogo": "workspace",
                   "esquema": "bronze"
                 }
               },
@@ -169,7 +169,7 @@ jobs:
                 "source": "WORKSPACE",
                 "base_parameters": {
                   "container": "raw",
-                  "catalogo": "catalog_smartdata",
+                  "catalogo": "workspace",
                   "esquema": "bronze"
                 }
               },
@@ -189,7 +189,7 @@ jobs:
                 "notebook_path": "/py/scripts/main/Transform",
                 "source": "WORKSPACE",
                 "base_parameters": {
-                  "catalogo": "catalog_smartdata",
+                  "catalogo": "workspace",
                   "esquema_source": "bronze",
                   "esquema_sink": "silver"
                 }
@@ -210,7 +210,7 @@ jobs:
                 "notebook_path": "/py/scripts/main/Load",
                 "source": "WORKSPACE",
                 "base_parameters": {
-                  "catalogo": "catalog_smartdata",
+                  "catalogo": "workspace",
                   "esquema_source": "silver",
                   "esquema_sink": "golden"
                 }

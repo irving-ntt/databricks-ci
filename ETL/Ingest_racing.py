@@ -9,7 +9,7 @@ from pyspark.sql.functions import current_timestamp, to_timestamp, concat, col, 
 # COMMAND ----------
 
 dbutils.widgets.text("container", "raw")
-dbutils.widgets.text("catalogo", "catalog_smartdata")
+dbutils.widgets.text("catalogo", "workspace")
 dbutils.widgets.text("esquema", "bronze")
 
 # COMMAND ----------
