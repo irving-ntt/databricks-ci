@@ -127,18 +127,39 @@ jobs:
           "format": "MULTI_TASK",
           "tasks": [
             {
+              "task_key": "PrepAmb",
+              "description": "Ejecuta notebook PrepAmb",
+              "notebook_task": {
+                "notebook_path": "/py/scripts/main/Prep_Env",
+                "source": "WORKSPACE",
+                "base_parameters": {
+                  "storageName": "adlssmartdata1201"
+                }
+              },
+              "existing_cluster_id": "$CLUSTER_ID",
+              "timeout_seconds": 3600,
+              "max_retries": 2
+            },
+            {
               "task_key": "ingest_circuits",
               "description": "Ingesta del notebook de circuits",
               "notebook_task": {
                 "notebook_path": "/py/scripts/main/Ingest_circuits",
                 "source": "WORKSPACE",
                 "base_parameters": {
-                  "storageLocation": "storage"
+                  "container": "raw",
+                  "catalogo": "catalog_smartdata",
+                  "esquema": "bronze"
                 }
               },
               "existing_cluster_id": "$CLUSTER_ID",
               "timeout_seconds": 3600,
-              "max_retries": 2
+              "max_retries": 2,
+              "depends_on": [
+                {
+                  "task_key": "PrepAmb"
+                }
+              ]
             },
             {
               "task_key": "Ingest_races",
@@ -147,9 +168,9 @@ jobs:
                 "notebook_path": "/py/scripts/main/Ingest_racing",
                 "source": "WORKSPACE",
                 "base_parameters": {
-                  "inputPath": "/data/input",
-                  "outputPath": "/data/output",
-                  "processDate": "$(date +%Y-%m-%d)"
+                  "container": "raw",
+                  "catalogo": "catalog_smartdata",
+                  "esquema": "bronze"
                 }
               },
               "existing_cluster_id": "$CLUSTER_ID",
@@ -168,9 +189,9 @@ jobs:
                 "notebook_path": "/py/scripts/main/Transform",
                 "source": "WORKSPACE",
                 "base_parameters": {
-                  "inputPath": "/data/input",
-                  "outputPath": "/data/output",
-                  "processDate": "$(date +%Y-%m-%d)"
+                  "catalogo": "catalog_smartdata",
+                  "esquema_source": "bronze",
+                  "esquema_sink": "silver"
                 }
               },
               "existing_cluster_id": "$CLUSTER_ID",
@@ -189,9 +210,9 @@ jobs:
                 "notebook_path": "/py/scripts/main/Load",
                 "source": "WORKSPACE",
                 "base_parameters": {
-                  "inputPath": "/data/input",
-                  "outputPath": "/data/output",
-                  "processDate": "$(date +%Y-%m-%d)"
+                  "catalogo": "catalog_smartdata",
+                  "esquema_source": "silver",
+                  "esquema_sink": "golden"
                 }
               },
               "existing_cluster_id": "$CLUSTER_ID",

@@ -1,13 +1,18 @@
+dbutils.widgets.removeAll()
+
 # Databricks notebook source
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 from pyspark.sql import functions as F
 
 # COMMAND ----------
+dbutils.widgets.text("catalogo", "catalog_dev")
+dbutils.widgets.text("esquema_source", "silver")
+dbutils.widgets.text("esquema_sink", "golden")
 
-catalogo = "adbsmartdata_prod"
-esquema_source = "silver"
-esquema_sink = "golden"
+catalogo = dbutils.widgets.get("catalogo")
+esquema_source = dbutils.widgets.get("esquema_source")
+esquema_sink = dbutils.widgets.get("esquema_sink")
 
 # COMMAND ----------
 
@@ -26,4 +31,4 @@ df_transformed = df_circuits_transformed.groupBy(col("race_year")).agg(
 
 # COMMAND ----------
 
-df_transformed.write.mode("overwrite").saveAsTable(f"{catalogo}.{esquema_sink}.circuits_insights")
+df_transformed.write.mode("overwrite").saveAsTable(f"{catalogo}.{esquema_sink}.golden_raced_partitioned")

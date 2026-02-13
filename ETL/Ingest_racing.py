@@ -1,13 +1,24 @@
 # Databricks notebook source
-from pyspark.sql.types import StructType, StructField, IntegerType, StringType, DateType
-from pyspark.sql.functions import *
+dbutils.widgets.removeAll()
 
 # COMMAND ----------
 
-##Definicion de constantes
-ruta = "/Volumes/adbsmartdata_prod/default/insumos/races.csv"
-catalogo = "adbsmartdata_prod"
-esquema = "bronze"
+from pyspark.sql.types import StructType, StructField, IntegerType, StringType, DateType
+from pyspark.sql.functions import current_timestamp, to_timestamp, concat, col, lit
+
+# COMMAND ----------
+
+dbutils.widgets.text("container", "raw")
+dbutils.widgets.text("catalogo", "catalog_smartdata")
+dbutils.widgets.text("esquema", "bronze")
+
+# COMMAND ----------
+
+container = dbutils.widgets.get("container")
+catalogo = dbutils.widgets.get("catalogo")
+esquema = dbutils.widgets.get("esquema")
+
+ruta = f"/Volumes/{catalogo}/{container}/datasets/races.csv"
 
 # COMMAND ----------
 

@@ -1,13 +1,18 @@
+dbutils.widgets.removeAll()
+
 # Databricks notebook source
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 from pyspark.sql import functions as F
 
 # COMMAND ----------
+dbutils.widgets.text("catalogo", "catalog_dev")
+dbutils.widgets.text("esquema_source", "bronze")
+dbutils.widgets.text("esquema_sink", "silver")
 
-catalogo = "adbsmartdata_prod"
-esquema_source = "bronze"
-esquema_sink = "silver"
+catalogo = dbutils.widgets.get("catalogo")
+esquema_source = dbutils.widgets.get("esquema_source")
+esquema_sink = dbutils.widgets.get("esquema_sink")
 
 # COMMAND ----------
 
