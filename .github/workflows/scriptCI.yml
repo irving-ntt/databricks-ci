@@ -25,11 +25,20 @@ jobs:
     - name: Install jq & curl
       run: sudo apt-get update && sudo apt-get install -y jq curl
 
-    - name: Install tools
+    - name: Install tools (pinned setuptools) + verify
       run: |
-        python -m pip install --upgrade pip setuptools wheel
-        python -m pip install "databricks-cli==0.17.7" "dbx==0.6.12" pyyaml requests
+        set -e
+        python --version
+        python -m pip install --upgrade pip
+
+        # IMPORTANT: setuptools 82 removed pkg_resources -> pin it
+        python -m pip install "setuptools<82" wheel
+
+        # verify
         python -c "import pkg_resources; print('pkg_resources OK')"
+
+        # install tools
+        python -m pip install "databricks-cli==0.17.7" "dbx==0.6.12" pyyaml requests
         python -m dbx --version
 
     - name: Show deployment context
@@ -88,5 +97,4 @@ jobs:
 
     - name: Deploy jobs
       run: |
-        . .venv/bin/activate
-        python -m dbx deploy -e ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }} --jobs
+          python -m dbx deploy -e ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }} --jobs
