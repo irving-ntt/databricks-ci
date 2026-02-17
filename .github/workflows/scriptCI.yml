@@ -81,99 +81,170 @@ jobs:
       run: |
           python scripts/resolve_and_patch_jobs.py
 
-    - name: Deploy all jobs
+    - name: Deploy all jobs (robust, debug)
       env:
         DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
         DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       run: |
         set -euo pipefail
+        echo "::group::Deploy all jobs - start"
+        echo "Datetime: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+        echo "Workspace host: $DATABRICKS_HOST"
+        echo "Listing job files in repo:"
+        ls -la jobs || true
 
-        # Recomendar: usar Jobs API 2.1
-        echo "Configuring Jobs API to 2.1 (recommended)"
+        # Try to configure Jobs API 2.1 (no fail if not supported)
+        echo "Configuring Jobs API to 2.1 (best-effort)"
         databricks jobs configure --version=2.1 || true
+
+        # helper: function to find job id by exact name using paging
+        find_job_id_by_name() {
+          local name="$1"
+          # Use Jobs list with pagination via API because CLI 'databricks jobs list' can be truncated
+          local page_token=""
+          while :; do
+            if [ -z "$page_token" ]; then
+              resp=$(curl -sS -X GET -H "Authorization: Bearer $DATABRICKS_TOKEN" "$DATABRICKS_HOST/api/2.1/jobs/list")
+            else
+              resp=$(curl -sS -X GET -H "Authorization: Bearer $DATABRICKS_TOKEN" "$DATABRICKS_HOST/api/2.1/jobs/list?page_token=$page_token")
+            fi
+
+            # If API returned nothing, break
+            if [ -z "$resp" ] || [ "$resp" = "null" ]; then
+              break
+            fi
+
+            # Query for matching job name (jobs[].settings.name)
+            job_id=$(echo "$resp" | jq -r --arg NAME "$name" '.jobs[]? | select(.settings.name == $NAME) | .job_id' | head -n1 || true)
+            if [ -n "$job_id" ]; then
+              echo "$job_id"
+              return 0
+            fi
+
+            # get next_page_token if present
+            page_token=$(echo "$resp" | jq -r '.next_page_token // empty' || true)
+            if [ -z "$page_token" ]; then
+              break
+            fi
+          done
+
+          # fallback empty
+          return 1
+        }
 
         shopt -s nullglob
         for file in jobs/*.yml jobs/*.yaml; do
-          echo "---- Processing $file ----"
-
-          # 1) Convert YAML -> Python object, and extract job object:
-          #    - If YAML is direct job (root has 'name'), use root.
-          #    - If YAML is Databricks export (resources.jobs.<id>), extract that job object.
+          echo "---- Processing file: $file ----"
           TMP_JSON="$(mktemp)"
-          python - <<'PY'
-        import sys, yaml, json
-        p=sys.argv[1]
-        out=sys.argv[2]
-        obj=yaml.safe_load(open(p,encoding="utf-8")) or {}
 
-        job_obj = None
+          # Convert / extract job object to JSON robustly and print debug info
+          python - <<'PY' "$file" "$TMP_JSON"
+        import sys, yaml, json, traceback
+        p = sys.argv[1]
+        out = sys.argv[2]
+        try:
+            raw = yaml.safe_load(open(p, encoding='utf-8')) or {}
+            job_obj = None
+            job_name = None
 
-        # Case A: root has name -> treat the file as job settings directly
-        if isinstance(obj, dict) and obj.get("name"):
-            job_obj = obj
+            # CASE 1: root contains name -> treat as direct job object
+            if isinstance(raw, dict) and raw.get('name'):
+                job_obj = raw
+                job_name = raw.get('name')
 
-        # Case B: export format -> resources.jobs.<key>
-        elif isinstance(obj, dict) and "resources" in obj and isinstance(obj["resources"], dict):
-            jobs_section = obj["resources"].get("jobs") or {}
-            # if there is exactly one job inside resources.jobs, pick it
-            if isinstance(jobs_section, dict) and len(jobs_section) >= 1:
-                # choose the first job object
-                first_key = next(iter(jobs_section))
-                job_obj = jobs_section[first_key]
-            else:
-                # fallback: if resources itself maybe is the job
-                job_obj = obj.get("resources") or obj
+            # CASE 2: databricks export bundle (resources.jobs.<key>)
+            elif isinstance(raw, dict) and 'resources' in raw and isinstance(raw['resources'], dict):
+                jobs_section = raw['resources'].get('jobs') or {}
+                if isinstance(jobs_section, dict) and len(jobs_section) >= 1:
+                    # choose the first job in export (common for single-export)
+                    # but be safe: prefer a job that has a 'name' field
+                    first_key = None
+                    for k, v in jobs_section.items():
+                        if isinstance(v, dict) and v.get('name'):
+                            first_key = k
+                            job_obj = v
+                            job_name = v.get('name')
+                            break
+                    if first_key is None:
+                        # fallback to first key
+                        first_key = next(iter(jobs_section))
+                        job_obj = jobs_section[first_key]
+                        job_name = job_obj.get('name') or (job_obj.get('settings') or {}).get('name') or None
 
-        # If still nothing, try to use obj directly (best-effort)
-        if job_obj is None:
-            job_obj = obj
+            # CASE 3: maybe the file already contains 'jobs' list (rare)
+            elif isinstance(raw, dict) and raw.get('jobs') and isinstance(raw.get('jobs'), list):
+                # take first job in list
+                job_obj = raw['jobs'][0] if raw['jobs'] else None
+                if job_obj:
+                    job_name = job_obj.get('name') or (job_obj.get('settings') or {}).get('name')
 
-        # Validate name presence
-        name = job_obj.get("name")
-        if not name:
-            # Try nested possible locations (e.g., settings.name)
-            name = (job_obj.get("settings") or {}).get("name") or ""
-        if not name:
-            print("ERROR: could not determine job name for file:", p, file=sys.stderr)
-            sys.exit(2)
+            # fallback: try to find nested settings.name
+            if job_obj is None:
+                # try possibilities
+                if isinstance(raw, dict) and (raw.get('settings') or {}).get('name'):
+                    job_obj = raw
+                    job_name = raw.get('settings').get('name')
+                else:
+                    # final fallback: use raw itself
+                    job_obj = raw
+                    job_name = job_obj.get('name') or (job_obj.get('settings') or {}).get('name')
 
-        # Write JSON
-        json.dump(job_obj, open(out,"w",encoding="utf-8"), indent=2)
-        print("WROTE_JSON", out)
-        print("JOB_NAME", name)
+            # Final validation
+            if not job_name:
+                print("DEBUG: Unable to determine job name from file:", p, file=sys.stderr)
+                print("DEBUG: Top-level keys:", list(raw.keys()), file=sys.stderr)
+                # print small excerpt to help debugging
+                try:
+                    excerpt = json.dumps(raw, indent=2)[:800]
+                    print("DEBUG: excerpt:", excerpt, file=sys.stderr)
+                except Exception:
+                    pass
+                raise SystemExit(2)
+
+            # Write job object as JSON
+            json.dump(job_obj, open(out, "w", encoding='utf-8'), indent=2)
+            print("WROTE_JSON", out, file=sys.stdout)
+            print("JOB_NAME", job_name, file=sys.stdout)
+            # Print the name to stdout so the shell can capture it if desired
+            sys.stdout.flush()
+
+        except SystemExit as e:
+            raise
+        except Exception:
+            traceback.print_exc()
+            raise
         PY
-        "$file" "$TMP_JSON"
 
-                  # Extract job name from the JSON we generated (root.name or settings.name)
-                  JOB_NAME=$(python - <<'PY'
-        import json,sys
-        d=json.load(open(sys.argv[1],encoding='utf-8'))
+                  # read job name from the temporary JSON
+                  JOB_NAME=$(python - <<'PY' "$TMP_JSON"
+        import sys, json
+        d=json.load(open(sys.argv[1], encoding='utf-8'))
         name = d.get('name') or (d.get('settings') or {}).get('name') or ''
         print(name)
         PY
         "$TMP_JSON")
 
                   if [ -z "$JOB_NAME" ]; then
-                    echo "ERROR: job name empty for $file; aborting"
+                    echo "::error::Could not determine JOB_NAME for $file; check file format"
                     rm -f "$TMP_JSON"
                     exit 1
                   fi
 
-                  echo "Job name resolved: $JOB_NAME"
+                  echo "Resolved job name: $JOB_NAME"
 
-                  # 2) Try to find existing job by name (use databricks jobs list JSON)
-                  # Use the Jobs API list and filter by settings.name strictly.
-                  EXISTING_JOB_ID=$(databricks jobs list --output JSON \
-                    | jq -r --arg NAME "$JOB_NAME" '.jobs[]? | select(.settings.name == $NAME) | .job_id' \
-                    | head -n 1 || true)
+                  # Find existing job id by querying Jobs API (robust pagination)
+                  EXISTING_JOB_ID=$(find_job_id_by_name "$JOB_NAME" || true)
 
                   if [ -z "$EXISTING_JOB_ID" ]; then
                     echo "Creating job $JOB_NAME from $file"
+                    # databricks jobs create expects JSON structure matching API
                     databricks jobs create --json-file "$TMP_JSON"
                   else
-                    echo "Resetting job $JOB_NAME (ID: $EXISTING_JOB_ID)"
+                    echo "Resetting (updating) job $JOB_NAME (ID: $EXISTING_JOB_ID) from $file"
                     databricks jobs reset --job-id "$EXISTING_JOB_ID" --json-file "$TMP_JSON"
                   fi
 
                   rm -f "$TMP_JSON"
                 done
+
+                echo "::endgroup::Deploy all jobs - end"
