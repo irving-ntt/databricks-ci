@@ -25,24 +25,21 @@ jobs:
     - name: Install jq & curl
       run: sudo apt-get update && sudo apt-get install -y jq curl
 
-    - name: Install tools (same interpreter) + verify pkg_resources
+    - name: Install tools (venv) + verify pkg_resources
       run: |
         set -e
-        echo "Python:" && which python
+
         python --version
-        echo "Pip:" && python -m pip -V
+        python -m venv .venv
+        . .venv/bin/activate
 
-        # instala toolchain + setuptools (incluye pkg_resources)
+        python --version
         python -m pip install --upgrade pip
-        python -m pip install --upgrade "setuptools" "wheel"
+        python -m pip install --upgrade setuptools wheel
 
-        # verifica que pkg_resources exista
         python -c "import pkg_resources; print('pkg_resources OK from', pkg_resources.__file__)"
 
-        # instala herramientas (en el mismo Python)
         python -m pip install "databricks-cli==0.17.7" "dbx==0.6.12" pyyaml requests
-
-        # verifica dbx en este mismo Python
         python -m dbx --version
 
     - name: Show deployment context
@@ -101,4 +98,5 @@ jobs:
 
     - name: Deploy jobs
       run: |
+        . .venv/bin/activate
         python -m dbx deploy -e ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }} --jobs
