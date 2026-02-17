@@ -22,10 +22,9 @@ jobs:
 
     - name: Install tools
       run: |
-          python -m pip install --upgrade pip
-          pip install dbx databricks-cli pyyaml requests
-          sudo apt-get update -y
-          sudo apt-get install -y yq
+        python -m pip install --upgrade pip setuptools wheel
+        pip install --no-build-isolation "databricks-cli==0.17.7"
+        pip install "dbx==0.6.12" pyyaml requests
 
     - name: Show deployment context
       run: |
