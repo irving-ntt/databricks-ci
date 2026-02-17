@@ -1,0 +1,53 @@
+[flake8]
+
+# =========================
+# Configuración general
+# =========================
+
+max-line-length = 120
+count = True
+statistics = True
+show-source = True
+
+# Reglas ignoradas globalmente
+# E203 y W503 para compatibilidad con black
+ignore =
+    E203,
+    W503
+
+# Excluir carpetas irrelevantes
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    .pytest_cache,
+    build,
+    dist,
+    site-packages,
+    node_modules,
+    .databricks,
+    .idea,
+    .vscode,
+    *.ipynb_checkpoints
+
+max-complexity = 15
+select = E,W,F,C90
+
+
+# =========================
+# Reglas específicas por carpeta
+# =========================
+
+# Notebooks exportados (.py)
+# Se permiten:
+# - imports fuera del top (E402)
+# - variables no usadas (F841)
+# - imports no usados (F401)
+# - líneas largas (E501)
+per-file-ignores =
+    notebooks/*.py: E402,F401,F841,E501
+
+# Scripts productivos
+# Mantener estrictos (no ignorar nada extra)
+    scripts/*.py:
