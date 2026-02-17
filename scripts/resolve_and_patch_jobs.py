@@ -35,13 +35,11 @@ def get_cluster_id(host: str, token: str, cluster_name: str) -> str:
 
 
 def main():
-    host = env_required("DATABRICKS_HOST")
-    token = env_required("DATABRICKS_TOKEN")
     cluster_name = env_required("DATABRICKS_CLUSTER_NAME")
 
     print(f"Resolving cluster '{cluster_name}'...")
 
-    cluster_id = os.getenv("CLUSTER_ID") #get_cluster_id(host, token, cluster_name)
+    cluster_id = os.getenv("CLUSTER_ID")  
 
     if not cluster_id:
         print(f"ERROR: Cluster '{cluster_name}' not found in workspace.")
