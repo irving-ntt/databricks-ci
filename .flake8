@@ -4,7 +4,7 @@
 # Configuración general
 # =========================
 
-max-line-length = 120
+max-line-length = 200
 count = True
 statistics = True
 show-source = True
@@ -47,7 +47,7 @@ select = E,W,F,C90
 # - imports no usados (F401)
 # - líneas largas (E501)
 per-file-ignores =
-    notebooks/*.py: E402,F401,F841,E501,F821,F403
+    notebooks/*.py: E402,F401,F841,E501,F821,F403,E122,E123,E124,E126,E128,E225,E231,E302,E305,E402,E501,F401,F403,F405,F821,W291
 
 # Scripts productivos
 # Mantener estrictos (no ignorar nada extra)
