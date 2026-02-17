@@ -50,4 +50,4 @@ per-file-ignores =
 
 # Scripts productivos
 # Mantener estrictos (no ignorar nada extra)
-    scripts/*.py:
+#    scripts/*.py:
