@@ -16,19 +16,21 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v3
-    
-    - name: Install jq & curl
-      run: sudo apt-get update && sudo apt-get install -y jq curl
 
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: "3.10"
+    
+    - name: Install jq & curl
+      run: sudo apt-get update && sudo apt-get install -y jq curl
 
     - name: Install tools
       run: |
         python -m pip install --upgrade pip setuptools wheel
-        pip install "databricks-cli==0.17.7" "dbx==0.6.12" pyyaml requests
+        python -m pip install "databricks-cli==0.17.7" "dbx==0.6.12" pyyaml requests
+        python -c "import pkg_resources; print('pkg_resources OK')"
+        python -m dbx --version
 
     - name: Show deployment context
       run: |
@@ -86,4 +88,4 @@ jobs:
 
     - name: Deploy jobs
       run: |
-          dbx deploy -e ${{ secrets.DBX_ENV }} --jobs
+          python -m dbx deploy -e ${{ secrets.DBX_ENV }} --jobs
