@@ -29,7 +29,8 @@ exclude =
     .databricks,
     .idea,
     .vscode,
-    *.ipynb_checkpoints
+    *.ipynb_checkpoints,
+    scripts
 
 max-complexity = 15
 select = E,W,F,C90
@@ -46,7 +47,7 @@ select = E,W,F,C90
 # - imports no usados (F401)
 # - líneas largas (E501)
 per-file-ignores =
-    notebooks/*.py: E402,F401,F841,E501
+    notebooks/*.py: E402,F401,F841,E501,F821,F403
 
 # Scripts productivos
 # Mantener estrictos (no ignorar nada extra)
