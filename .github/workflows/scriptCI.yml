@@ -25,21 +25,11 @@ jobs:
     - name: Install jq & curl
       run: sudo apt-get update && sudo apt-get install -y jq curl
 
-    - name: Install tools (venv) + verify pkg_resources
+    - name: Install tools
       run: |
-        set -e
-
-        python --version
-        python -m venv .venv
-        . .venv/bin/activate
-
-        python --version
-        python -m pip install --upgrade pip
-        python -m pip install --upgrade setuptools wheel
-
-        python -c "import pkg_resources; print('pkg_resources OK from', pkg_resources.__file__)"
-
+        python -m pip install --upgrade pip setuptools wheel
         python -m pip install "databricks-cli==0.17.7" "dbx==0.6.12" pyyaml requests
+        python -c "import pkg_resources; print('pkg_resources OK')"
         python -m dbx --version
 
     - name: Show deployment context
