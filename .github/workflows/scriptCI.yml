@@ -83,7 +83,7 @@ jobs:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           DATABRICKS_CLUSTER_NAME: ${{ secrets.DATABRICKS_CLUSTER_NAME }}
       run: |
-          python scripts/resolve_cluster_and_patch_jobs.py
+          python scripts/resolve_and_patch_jobs.py
 
     - name: Deploy jobs
       run: |
