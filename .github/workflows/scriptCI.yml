@@ -22,24 +22,10 @@ jobs:
       with:
         python-version: "3.10"
     
-    - name: Install jq & curl
-      run: sudo apt-get update && sudo apt-get install -y jq curl
-
-    - name: Install tools (pinned setuptools) + verify
+    - name: Install Databricks CLI
       run: |
-        set -e
-        python --version
         python -m pip install --upgrade pip
-
-        # IMPORTANT: setuptools 82 removed pkg_resources -> pin it
-        python -m pip install "setuptools<82" wheel
-
-        # verify
-        python -c "import pkg_resources; print('pkg_resources OK')"
-
-        # install tools
-        python -m pip install "databricks-cli==0.17.7" "dbx==0.6.12" pyyaml requests
-        python -m dbx --version
+        python -m pip install databricks-cli pyyaml requests
 
     - name: Show deployment context
       run: |
@@ -95,6 +81,22 @@ jobs:
       run: |
           python scripts/resolve_and_patch_jobs.py
 
-    - name: Deploy jobs
+    - name: Deploy all jobs
       run: |
-          python -m dbx deploy -e ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }} --jobs
+        for file in jobs/*.yml; do
+          echo "Processing $file"
+
+          JOB_NAME=$(yq -r '.name' "$file")
+
+          echo "Checking if job exists: $JOB_NAME"
+
+          EXISTING_JOB_ID=$(databricks jobs list --output JSON | jq -r --arg NAME "$JOB_NAME" '.jobs[] | select(.settings.name==$NAME) | .job_id')
+
+          if [ -z "$EXISTING_JOB_ID" ]; then
+            echo "Creating job $JOB_NAME"
+            databricks jobs create --json-file "$file"
+          else
+            echo "Updating job $JOB_NAME (ID: $EXISTING_JOB_ID)"
+            databricks jobs reset --job-id "$EXISTING_JOB_ID" --json-file "$file"
+          fi
+        done
