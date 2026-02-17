@@ -30,6 +30,7 @@ exclude =
     .idea,
     .vscode,
     *.ipynb_checkpoints,
+    ETL,
     scripts
 
 max-complexity = 15
