@@ -82,21 +82,98 @@ jobs:
           python scripts/resolve_and_patch_jobs.py
 
     - name: Deploy all jobs
+      env:
+        DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+        DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       run: |
-        for file in jobs/*.yml; do
-          echo "Processing $file"
+        set -euo pipefail
 
-          JOB_NAME=$(yq -r '.name' "$file")
+        # Recomendar: usar Jobs API 2.1
+        echo "Configuring Jobs API to 2.1 (recommended)"
+        databricks jobs configure --version=2.1 || true
 
-          echo "Checking if job exists: $JOB_NAME"
+        shopt -s nullglob
+        for file in jobs/*.yml jobs/*.yaml; do
+          echo "---- Processing $file ----"
 
-          EXISTING_JOB_ID=$(databricks jobs list --output JSON | jq -r --arg NAME "$JOB_NAME" '.jobs[] | select(.settings.name==$NAME) | .job_id')
+          # 1) Convert YAML -> Python object, and extract job object:
+          #    - If YAML is direct job (root has 'name'), use root.
+          #    - If YAML is Databricks export (resources.jobs.<id>), extract that job object.
+          TMP_JSON="$(mktemp)"
+          python - <<'PY'
+        import sys, yaml, json
+        p=sys.argv[1]
+        out=sys.argv[2]
+        obj=yaml.safe_load(open(p,encoding="utf-8")) or {}
 
-          if [ -z "$EXISTING_JOB_ID" ]; then
-            echo "Creating job $JOB_NAME"
-            databricks jobs create --json-file "$file"
-          else
-            echo "Updating job $JOB_NAME (ID: $EXISTING_JOB_ID)"
-            databricks jobs reset --job-id "$EXISTING_JOB_ID" --json-file "$file"
-          fi
-        done
+        job_obj = None
+
+        # Case A: root has name -> treat the file as job settings directly
+        if isinstance(obj, dict) and obj.get("name"):
+            job_obj = obj
+
+        # Case B: export format -> resources.jobs.<key>
+        elif isinstance(obj, dict) and "resources" in obj and isinstance(obj["resources"], dict):
+            jobs_section = obj["resources"].get("jobs") or {}
+            # if there is exactly one job inside resources.jobs, pick it
+            if isinstance(jobs_section, dict) and len(jobs_section) >= 1:
+                # choose the first job object
+                first_key = next(iter(jobs_section))
+                job_obj = jobs_section[first_key]
+            else:
+                # fallback: if resources itself maybe is the job
+                job_obj = obj.get("resources") or obj
+
+        # If still nothing, try to use obj directly (best-effort)
+        if job_obj is None:
+            job_obj = obj
+
+        # Validate name presence
+        name = job_obj.get("name")
+        if not name:
+            # Try nested possible locations (e.g., settings.name)
+            name = (job_obj.get("settings") or {}).get("name") or ""
+        if not name:
+            print("ERROR: could not determine job name for file:", p, file=sys.stderr)
+            sys.exit(2)
+
+        # Write JSON
+        json.dump(job_obj, open(out,"w",encoding="utf-8"), indent=2)
+        print("WROTE_JSON", out)
+        print("JOB_NAME", name)
+        PY
+        "$file" "$TMP_JSON"
+
+                  # Extract job name from the JSON we generated (root.name or settings.name)
+                  JOB_NAME=$(python - <<'PY'
+        import json,sys
+        d=json.load(open(sys.argv[1],encoding='utf-8'))
+        name = d.get('name') or (d.get('settings') or {}).get('name') or ''
+        print(name)
+        PY
+        "$TMP_JSON")
+
+                  if [ -z "$JOB_NAME" ]; then
+                    echo "ERROR: job name empty for $file; aborting"
+                    rm -f "$TMP_JSON"
+                    exit 1
+                  fi
+
+                  echo "Job name resolved: $JOB_NAME"
+
+                  # 2) Try to find existing job by name (use databricks jobs list JSON)
+                  # Use the Jobs API list and filter by settings.name strictly.
+                  EXISTING_JOB_ID=$(databricks jobs list --output JSON \
+                    | jq -r --arg NAME "$JOB_NAME" '.jobs[]? | select(.settings.name == $NAME) | .job_id' \
+                    | head -n 1 || true)
+
+                  if [ -z "$EXISTING_JOB_ID" ]; then
+                    echo "Creating job $JOB_NAME from $file"
+                    databricks jobs create --json-file "$TMP_JSON"
+                  else
+                    echo "Resetting job $JOB_NAME (ID: $EXISTING_JOB_ID)"
+                    databricks jobs reset --job-id "$EXISTING_JOB_ID" --json-file "$TMP_JSON"
+                  fi
+
+                  rm -f "$TMP_JSON"
+                done
