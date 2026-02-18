@@ -5,71 +5,96 @@ import os
 import sys
 from pathlib import Path
 import yaml
-import requests
 
 JOBS_DIR = Path("jobs")
 
-
-def env_required(name: str) -> str:
-    value = os.getenv(name)
-    if not value:
-        print(f"Missing required environment variable: {name}")
+def get_env(name: str) -> str:
+    v = os.getenv(name)
+    if not v:
+        print(f"ERROR: required env var {name} not set")
         sys.exit(1)
-    return value
+    return v
 
+def patch_task_dict(task: dict, cluster_id: str) -> bool:
+    """Patch single task dict in-place. Return True if changed."""
+    changed = False
+    if not isinstance(task, dict):
+        return False
+    # If there's a new_cluster at task level, remove it
+    if "new_cluster" in task:
+        task.pop("new_cluster", None)
+        changed = True
+    # Set existing_cluster_id
+    prev = task.get("existing_cluster_id")
+    if prev != cluster_id:
+        task["existing_cluster_id"] = cluster_id
+        changed = True
+    return changed
 
-def get_cluster_id(host: str, token: str, cluster_name: str) -> str:
-    url = f"{host.rstrip('/')}/api/2.0/clusters/list"
-    headers = {"Authorization": f"Bearer {token}"}
+def find_and_patch_tasks(obj, cluster_id: str) -> int:
+    """
+    Recursively walk the object (dicts/lists) and patch any list elements called 'tasks'
+    or dicts that look like individual tasks. Returns count patched.
+    """
+    patched_count = 0
 
-    response = requests.get(url, headers=headers, timeout=30)
-    response.raise_for_status()
+    if isinstance(obj, dict):
+        # If this dict has a 'tasks' key that's a list -> iterate tasks
+        if "tasks" in obj and isinstance(obj["tasks"], list):
+            for t in obj["tasks"]:
+                if patch_task_dict(t, cluster_id):
+                    patched_count += 1
+        # Also handle possible job_clusters -> tasks or other shapes
+        # Walk into all dict values recursively
+        for k, v in obj.items():
+            patched_count += find_and_patch_tasks(v, cluster_id)
 
-    clusters = response.json().get("clusters", [])
+    elif isinstance(obj, list):
+        for item in obj:
+            patched_count += find_and_patch_tasks(item, cluster_id)
 
-    for cluster in clusters:
-        if cluster.get("cluster_name") == cluster_name:
-            return cluster.get("cluster_id")
-
-    return None
-
+    return patched_count
 
 def main():
-    cluster_name = env_required("DATABRICKS_CLUSTER_NAME")
-
-    print(f"Resolving cluster '{cluster_name}'...")
-
-    cluster_id = os.getenv("CLUSTER_ID")  
-    print(f"Cluster ID: {cluster_id}")
-
+    # We require CLUSTER_ID to be present (exported to GITHUB_ENV in previous step)
+    cluster_id = os.getenv("CLUSTER_ID")
     if not cluster_id:
-        print(f"ERROR: Cluster '{cluster_name}' not found in workspace.")
+        print("ERROR: CLUSTER_ID environment variable is required but not set.")
         sys.exit(1)
 
-    print(f"Cluster ID found: {cluster_id}")
+    print(f"Using CLUSTER_ID={cluster_id}")
 
-    job_files = sorted(JOBS_DIR.glob("*.yml"))
-
-    if not job_files:
-        print("No job files found in jobs/*.yml")
+    if not JOBS_DIR.exists() or not JOBS_DIR.is_dir():
+        print("No jobs/ directory found. Nothing to patch.")
         sys.exit(0)
 
-    for job_file in job_files:
-        job_data = yaml.safe_load(job_file.read_text()) or {}
+    job_files = sorted(JOBS_DIR.glob("*.yml"))
+    if not job_files:
+        print("No job YAML files found in jobs/")
+        sys.exit(0)
 
-        # Remove any cluster configuration that should not be used
-        job_data.pop("new_cluster", None)
-        job_data.pop("cluster_name", None)
+    total_patched = 0
+    for jf in job_files:
+        raw = jf.read_text(encoding="utf-8")
+        try:
+            data = yaml.safe_load(raw) or {}
+        except Exception as e:
+            print(f"ERROR parsing YAML {jf}: {e}")
+            continue
 
-        # Force existing_cluster_id
-        job_data["existing_cluster_id"] = cluster_id
+        patched = find_and_patch_tasks(data, cluster_id)
 
-        job_file.write_text(yaml.safe_dump(job_data, sort_keys=False))
+        # Write back only if patched or even always to normalize
+        jf.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
-        print(f"Updated job: {job_file.name}")
+        if patched:
+            print(f"Patched {patched} tasks in {jf.name}")
+        else:
+            print(f"No tasks patched in {jf.name} (check format)")
 
-    print("All jobs updated successfully.")
+        total_patched += patched
 
+    print(f"Done. Total patched tasks across files: {total_patched}")
 
 if __name__ == "__main__":
     main()
