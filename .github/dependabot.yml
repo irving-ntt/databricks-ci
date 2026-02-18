@@ -1,0 +1,29 @@
+version: 2
+
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"   # Cambia si tus requirements.txt están en otra carpeta
+    schedule:
+      interval: "daily"   # daily | weekly | monthly
+    open-pull-requests-limit: 10
+
+    # Opcional: agrupar actualizaciones menores
+    groups:
+      minor-updates:
+        update-types:
+          - "minor"
+          - "patch"
+
+    # Opcional: asignar reviewers automáticamente
+    reviewers:
+      - "tu-usuario-github"
+
+    # Opcional: agregar labels a los PRs
+    labels:
+      - "dependencies"
+      - "security"
+
+    # Opcional: solo PRs de seguridad
+    # allow:
+    #   - dependency-type: "direct"
+    #     update-type: "security"
