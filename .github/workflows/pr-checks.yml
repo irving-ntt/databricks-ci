@@ -68,6 +68,24 @@ jobs:
         with:
           output: results.sarif
 
+      - name: Locate SARIF file
+        id: locate_sarif
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Buscando archivos .sarif dentro de results.sarif..."
+          SARIF_FILE="$(find results.sarif -type f -name '*.sarif' | head -n 1 || true)"
+
+          if [[ -z "${SARIF_FILE}" ]]; then
+            echo "ERROR: No se encontró ningún archivo .sarif dentro de results.sarif"
+            echo "Contenido de results.sarif:"
+            ls -la results.sarif || true
+            exit 1
+          fi
+
+          echo "SARIF encontrado: ${SARIF_FILE}"
+          echo "sarif_file=${SARIF_FILE}" >> "${GITHUB_OUTPUT}"
+
       - name: Fail on High/Critical
         run: |
-          python scripts/parse_sarif_fail_on_severity.py results.sarif HIGH
+          python scripts/parse_sarif_fail_on_severity.py "${{ steps.locate_sarif.outputs.sarif_file }}" HIGH
