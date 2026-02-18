@@ -10,8 +10,8 @@ jobs:
     environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
 
     env:
-      NOTEBOOKS_DIR: notebooks
-      WORKSPACE_BASE: /Workspace/Users/irving_garcia7@outlook.com/databricks-ci/
+      NOTEBOOKS_DIR: ${{ vars.NOTEBOOKS_DIR }}
+      WORKSPACE_BASE: ${{ vars.WORKSPACE_BASE }}
 
     steps:
     - name: Checkout Repository
