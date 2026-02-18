@@ -78,6 +78,7 @@ jobs:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           DATABRICKS_CLUSTER_NAME: ${{ secrets.DATABRICKS_CLUSTER_NAME }}
+          CLUSTER_ID: ${{ env.CLUSTER_ID }}
       run: |
           python scripts/resolve_and_patch_jobs.py
 

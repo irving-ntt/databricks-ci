@@ -40,6 +40,7 @@ def main():
     print(f"Resolving cluster '{cluster_name}'...")
 
     cluster_id = os.getenv("CLUSTER_ID")  
+    print(f"Cluster ID: {cluster_id}")
 
     if not cluster_id:
         print(f"ERROR: Cluster '{cluster_name}' not found in workspace.")
