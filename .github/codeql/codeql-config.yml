@@ -7,4 +7,3 @@ paths-ignore:
   - "**/__pycache__/**"
   - "**/.git/**"
   - "**/.github/**"
-  - "**/scripts/**"
