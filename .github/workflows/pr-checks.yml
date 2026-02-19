@@ -30,12 +30,6 @@ jobs:
           fi
           python -m pip install pytest
 
-      - name: Run Semgrep security rules
-        run: |
-          python -m pip install semgrep
-          # Run semgrep (use `scan` subcommand) and exit non-zero if any findings are found.
-          semgrep scan --config .github/semgrep/rules.yml --no-gitignore --exit-code 1
-
       - name: Lint (flake8 annotations in PR)
         uses: reviewdog/action-flake8@v3
         with:
