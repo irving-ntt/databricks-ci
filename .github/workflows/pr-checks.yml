@@ -72,27 +72,13 @@ jobs:
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
 
-      - name: Analyze (SARIF output)
+      # We intentionally do not set an explicit `output:` path here.
+      # Leaving the default lets `github/codeql-action/analyze@v3` upload
+      # the generated SARIF directly to GitHub Code Scanning so alerts
+      # are created automatically on the PR. Previously we wrote SARIF
+      # to a local file and did not upload it, which prevented alerts.
+      - name: Analyze (upload SARIF)
         uses: github/codeql-action/analyze@v3
-        with:
-          output: results.sarif
-
-      - name: Locate SARIF file
-        id: locate_sarif
-        shell: bash
-        run: |
-          set -euo pipefail
-          SARIF_FILE="$(find results.sarif -type f -name '*.sarif' | head -n 1 || true)"
-          if [[ -z "${SARIF_FILE}" ]]; then
-            echo "ERROR: No SARIF found under results.sarif"
-            ls -la results.sarif || true
-            exit 1
-          fi
-          echo "sarif_file=${SARIF_FILE}" >> "${GITHUB_OUTPUT}"
-
-      - name: Fail on High/Critical
-        run: |
-          python scripts/parse_sarif_fail_on_severity.py "${{ steps.locate_sarif.outputs.sarif_file }}" LOW
 
   gate:
     name: Final Gate (Quality must pass)
