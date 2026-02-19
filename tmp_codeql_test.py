@@ -1,7 +1,10 @@
-# tmp_codeql_test.py
 import subprocess
+import sys
 
 
-def run_user_command(user_input: str) -> None:
-    # Vulnerabilidad intencional para prueba: command injection
+def main() -> None:
+    user_input = sys.argv[1]
     subprocess.run(user_input, shell=True, check=False)
+
+if __name__ == "__main__":
+    main()
