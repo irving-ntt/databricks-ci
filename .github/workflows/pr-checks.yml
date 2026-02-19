@@ -92,7 +92,7 @@ jobs:
 
       - name: Fail on High/Critical
         run: |
-          python scripts/parse_sarif_fail_on_severity.py "${{ steps.locate_sarif.outputs.sarif_file }}" HIGH
+          python scripts/parse_sarif_fail_on_severity.py "${{ steps.locate_sarif.outputs.sarif_file }}" LOW
 
   gate:
     name: Final Gate (Quality must pass)
