@@ -99,16 +99,16 @@ jobs:
 
       - name: Debug SARIF total findings (any severity)
         run: |
-            python - << 'PY'
-            import json
-            f = "${{ steps.locate_sarif.outputs.sarif_file }}"
-            d = json.load(open(f, "r", encoding="utf-8"))
-            results = d.get("runs",[{}])[0].get("results",[])
-            print("Total findings:", len(results))
-            if results:
-            print("Sample ruleId:", results[0].get("ruleId"))
-            print("Sample message:", results[0].get("message", {}).get("text", ""))
-            PY
+          python - << 'PY'
+          import json
+          f = "${{ steps.locate_sarif.outputs.sarif_file }}"
+          d = json.load(open(f, "r", encoding="utf-8"))
+          results = d.get("runs",[{}])[0].get("results",[])
+          print("Total findings:", len(results))
+          if results:
+          print("Sample ruleId:", results[0].get("ruleId"))
+          print("Sample message:", results[0].get("message", {}).get("text", ""))
+          PY
 
       - name: Fail on High/Critical
         run: |
