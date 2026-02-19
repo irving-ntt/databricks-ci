@@ -7,7 +7,7 @@ on:
   pull_request:
     branches: [ dev, main ]
   push:
-    branches: [ dev, main ]   
+    branches: [ dev, main ]
 
 jobs:
   test:
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: write   # ✅ necesario para que reviewdog anote en el PR
     steps:
       - uses: actions/checkout@v4
 
@@ -56,7 +56,7 @@ jobs:
   codeql:
     name: CodeQL + Fail on High/Critical
     needs: test
-    if: always()   # ✅ corre aunque falle "test" (y también corre en push a main)
+    if: always()   # ✅ corre aunque falle "test"
     runs-on: ubuntu-latest
     permissions:
       actions: read
