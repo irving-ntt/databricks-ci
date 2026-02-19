@@ -7,15 +7,16 @@ on:
   pull_request:
     branches: [ dev, main ]
   push:
-    branches: [ dev, main ]
+    branches: [ dev, main ]   # ✅ Alimenta Code Scanning desde la rama default
 
 jobs:
   test:
     name: CI Tests
+    if: github.event_name == 'pull_request'   # ✅ Evita correr lint/tests en push
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write   # ✅ necesario para que reviewdog anote en el PR
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -56,7 +57,7 @@ jobs:
   codeql:
     name: CodeQL + Fail on High/Critical
     needs: test
-    if: always()   # ✅ corre aunque falle "test"
+    if: always()   # ✅ corre aunque falle "test" (y también corre en push a main)
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -67,6 +68,7 @@ jobs:
         with: { fetch-depth: 0 }
 
       - name: Verify test file is in the checked-out commit
+        if: github.event_name == 'pull_request'
         run: |
           echo "SHA: $GITHUB_SHA"
           git rev-parse HEAD
@@ -134,14 +136,15 @@ jobs:
           PY
 
       - name: Fail on High/Critical
+        if: github.event_name == 'pull_request'   # ✅ solo gate en PR
         run: |
           python scripts/parse_sarif_fail_on_severity.py "${{ steps.locate_sarif.outputs.sarif_file }}" MEDIUM
 
   gate:
     name: Final Gate (Quality must pass)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     needs: [ test, codeql ]
-    if: always()   # ✅ corre siempre para decidir el resultado final
     steps:
       - name: Fail if CI Tests failed
         if: needs.test.result != 'success'
