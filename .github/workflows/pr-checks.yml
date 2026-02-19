@@ -11,6 +11,9 @@ jobs:
   test:
     name: CI Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # ✅ necesario para que reviewdog anote en el PR
     steps:
       - uses: actions/checkout@v4
 
@@ -25,10 +28,14 @@ jobs:
           else
             echo "No requirements.txt found. Skipping dependency install."
           fi
-          python -m pip install pytest flake8
+          python -m pip install pytest
 
-      - name: Lint
-        run: flake8 .
+      - name: Lint (flake8 annotations in PR)
+        uses: reviewdog/action-flake8@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review
+          fail_on_error: true
 
       - name: Tests
         run: |
