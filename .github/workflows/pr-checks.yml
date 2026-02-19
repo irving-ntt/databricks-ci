@@ -80,10 +80,13 @@ jobs:
         with:
           output: results.sarif
 
+      # Use a unique category to avoid the "only one run... allowed per job"
+      # error when both `analyze` and `upload-sarif` are present in the same job.
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: results.sarif
+          category: codeql-pr-results
 
       - name: Fail on High/Critical
         run: |
