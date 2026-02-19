@@ -1,10 +1,10 @@
 import subprocess
 import sys
+import os
 
 
 def main() -> None:
-    user_input = sys.argv[1]
-    subprocess.run(user_input, shell=True, check=False)
+    print(f"[INFO] Environment: {os.environ}")
 
 
 if __name__ == "__main__":
