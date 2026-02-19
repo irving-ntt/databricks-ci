@@ -66,6 +66,21 @@ jobs:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
+      - name: Verify test file is in the checked-out commit
+        run: |
+          echo "SHA: $GITHUB_SHA"
+          git rev-parse HEAD
+          echo "Looking for tmp_codeql_test.py..."
+          find . -maxdepth 6 -name "tmp_codeql_test.py" -print
+          echo "Preview file:"
+          f=$(find . -maxdepth 6 -name "tmp_codeql_test.py" | head -n 1 || true)
+          if [ -n "$f" ]; then
+            sed -n '1,120p' "$f"
+          else
+            echo "tmp_codeql_test.py not found in this checkout."
+            exit 1
+          fi
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
