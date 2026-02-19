@@ -1,12 +1,12 @@
 rules:
   - id: python.subprocess-shell-unsafe
-    pattern-regex: "subprocess\s*\.\s*run\s*\([^)]*shell\s*=\s*True"
+    pattern-regex: 'subprocess\s*\.\s*run\s*\([^)]*shell\s*=\s*True'
     message: "Avoid subprocess.run with shell=True — possible command injection"
     languages: [python]
     severity: ERROR
 
   - id: python.subprocess-popen-shell-unsafe
-    pattern-regex: "subprocess\s*\.\s*Popen\s*\([^)]*shell\s*=\s*True"
+    pattern-regex: 'subprocess\s*\.\s*Popen\s*\([^)]*shell\s*=\s*True'
     message: "Avoid subprocess.Popen with shell=True — possible command injection"
     languages: [python]
     severity: ERROR
