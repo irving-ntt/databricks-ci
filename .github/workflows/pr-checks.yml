@@ -116,12 +116,6 @@ jobs:
           echo "SARIF encontrado: ${SARIF_FILE}"
           echo "sarif_file=${SARIF_FILE}" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload SARIF explicitly to Code Scanning
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: "${{ steps.locate_sarif.outputs.sarif_file }}"
-
       - name: Debug SARIF total findings (any severity)
         run: |
           python - << 'PY'
