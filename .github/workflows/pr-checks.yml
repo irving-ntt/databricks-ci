@@ -106,8 +106,8 @@ jobs:
           results = d.get("runs",[{}])[0].get("results",[])
           print("Total findings:", len(results))
           if results:
-          print("Sample ruleId:", results[0].get("ruleId"))
-          print("Sample message:", results[0].get("message", {}).get("text", ""))
+            print("Sample ruleId:", results[0].get("ruleId"))
+            print("Sample message:", results[0].get("message", {}).get("text", ""))
           PY
 
       - name: Fail on High/Critical
