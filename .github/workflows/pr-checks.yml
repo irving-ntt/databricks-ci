@@ -6,11 +6,16 @@ permissions:
 on:
   pull_request:
     branches: [ dev, main ]
+  push:
+    branches: [ dev, main ]
 
 jobs:
   test:
     name: CI Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # ✅ necesario para que reviewdog anote en el PR
     steps:
       - uses: actions/checkout@v4
 
@@ -25,10 +30,14 @@ jobs:
           else
             echo "No requirements.txt found. Skipping dependency install."
           fi
-          python -m pip install pytest flake8
+          python -m pip install pytest
 
-      - name: Lint
-        run: flake8 .
+      - name: Lint (flake8 annotations in PR)
+        uses: reviewdog/action-flake8@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review
+          fail_on_error: true
 
       - name: Tests
         run: |
@@ -47,24 +56,26 @@ jobs:
   codeql:
     name: CodeQL + Fail on High/Critical
     needs: test
+    if: always()   # ✅ corre aunque falle "test"
     runs-on: ubuntu-latest
     permissions:
       actions: read
       security-events: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3
         with:
           languages: python
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
+        uses: github/codeql-action/autobuild@v3
 
       - name: Analyze (SARIF output)
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v3
         with:
           output: results.sarif
 
@@ -89,3 +100,21 @@ jobs:
       - name: Fail on High/Critical
         run: |
           python scripts/parse_sarif_fail_on_severity.py "${{ steps.locate_sarif.outputs.sarif_file }}" HIGH
+
+  gate:
+    name: Final Gate (Quality must pass)
+    runs-on: ubuntu-latest
+    needs: [ test, codeql ]
+    if: always()   # ✅ corre siempre para decidir el resultado final
+    steps:
+      - name: Fail if CI Tests failed
+        if: needs.test.result != 'success'
+        run: |
+          echo "CI Tests (Lint/Tests) failed. Failing workflow."
+          exit 1
+
+      - name: Fail if CodeQL failed
+        if: needs.codeql.result != 'success'
+        run: |
+          echo "CodeQL job failed. Failing workflow."
+          exit 1
