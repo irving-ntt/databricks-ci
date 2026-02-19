@@ -6,13 +6,10 @@ permissions:
 on:
   pull_request:
     branches: [ dev, main ]
-  push:
-    branches: [ dev, main ]   # ✅ Alimenta Code Scanning desde la rama default
 
 jobs:
   test:
     name: CI Tests
-    if: github.event_name == 'pull_request'   # ✅ Evita correr lint/tests en push
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -56,39 +53,21 @@ jobs:
 
   codeql:
     name: CodeQL + Fail on High/Critical
-    needs: test
-    if: always()   # ✅ corre aunque falle "test" (y también corre en push a main)
     runs-on: ubuntu-latest
     permissions:
-      actions: read
       security-events: write
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-
-      - name: Verify test file is in the checked-out commit
-        if: github.event_name == 'pull_request'
-        run: |
-          echo "SHA: $GITHUB_SHA"
-          git rev-parse HEAD
-          echo "Looking for tmp_codeql_test.py..."
-          find . -maxdepth 6 -name "tmp_codeql_test.py" -print
-          echo "Preview file:"
-          f=$(find . -maxdepth 6 -name "tmp_codeql_test.py" | head -n 1 || true)
-          if [ -n "$f" ]; then
-            sed -n '1,120p' "$f"
-          else
-            echo "tmp_codeql_test.py not found in this checkout."
-            exit 1
-          fi
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: python
+          queries: security-extended
           config-file: ./.github/codeql/codeql-config.yml
-          queries: security-extended   # ✅ más cobertura para encontrar findings
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
@@ -103,42 +82,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Buscando archivos .sarif dentro de results.sarif..."
           SARIF_FILE="$(find results.sarif -type f -name '*.sarif' | head -n 1 || true)"
-
           if [[ -z "${SARIF_FILE}" ]]; then
-            echo "ERROR: No se encontró ningún archivo .sarif dentro de results.sarif"
-            echo "Contenido de results.sarif:"
+            echo "ERROR: No SARIF found under results.sarif"
             ls -la results.sarif || true
             exit 1
           fi
-
-          echo "SARIF encontrado: ${SARIF_FILE}"
           echo "sarif_file=${SARIF_FILE}" >> "${GITHUB_OUTPUT}"
 
-      - name: Debug SARIF total findings (any severity)
-        run: |
-          python - << 'PY'
-          import json
-          f = "${{ steps.locate_sarif.outputs.sarif_file }}"
-          d = json.load(open(f, "r", encoding="utf-8"))
-          results = d.get("runs",[{}])[0].get("results",[])
-          print("Total findings:", len(results))
-          if results:
-            print("Sample ruleId:", results[0].get("ruleId"))
-            print("Sample message:", results[0].get("message", {}).get("text", ""))
-          PY
-
       - name: Fail on High/Critical
-        if: github.event_name == 'pull_request'   # ✅ solo gate en PR
         run: |
-          python scripts/parse_sarif_fail_on_severity.py "${{ steps.locate_sarif.outputs.sarif_file }}" MEDIUM
+          python scripts/parse_sarif_fail_on_severity.py "${{ steps.locate_sarif.outputs.sarif_file }}" HIGH
 
   gate:
     name: Final Gate (Quality must pass)
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     needs: [ test, codeql ]
+    if: always()
     steps:
       - name: Fail if CI Tests failed
         if: needs.test.result != 'success'
