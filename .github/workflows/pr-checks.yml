@@ -72,13 +72,22 @@ jobs:
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
 
-      # We intentionally do not set an explicit `output:` path here.
-      # Leaving the default lets `github/codeql-action/analyze@v3` upload
-      # the generated SARIF directly to GitHub Code Scanning so alerts
-      # are created automatically on the PR. Previously we wrote SARIF
-      # to a local file and did not upload it, which prevented alerts.
-      - name: Analyze (upload SARIF)
+      # We generate SARIF locally, upload it, and then fail the job
+      # if there are findings of severity HIGH or CRITICAL. This ensures
+      # the `codeql` job fails and branch protection can block merges.
+      - name: Analyze (SARIF output)
         uses: github/codeql-action/analyze@v3
+        with:
+          output: results.sarif
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+
+      - name: Fail on High/Critical
+        run: |
+          python scripts/parse_sarif_fail_on_severity.py results.sarif HIGH
 
   gate:
     name: Final Gate (Quality must pass)
