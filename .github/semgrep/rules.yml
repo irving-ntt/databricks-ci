@@ -1,0 +1,14 @@
+rules:
+  - id: python.subprocess-shell-unsafe
+    pattern: |
+      subprocess.run(..., shell=True)
+    message: "Avoid subprocess.run with shell=True — possible command injection"
+    languages: [python]
+    severity: ERROR
+
+  - id: python.subprocess-popen-shell-unsafe
+    pattern: |
+      subprocess.Popen(..., shell=True)
+    message: "Avoid subprocess.Popen with shell=True — possible command injection"
+    languages: [python]
+    severity: ERROR
