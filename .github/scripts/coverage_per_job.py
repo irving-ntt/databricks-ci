@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-coverage_per_job.py (agrupa tasks por job + KPI summary por job)
+coverage_per_job.py (KPI Test Coverage por Job usando cobertura de notebooks/*.py)
 
 Salida:
 {
@@ -9,15 +9,25 @@ Salida:
       "job_id": "...",
       "job_name": "...",
       "job_file": "...",
-      "tasks": [ ... ],
+      "tasks": [
+        {
+          "task_key": "...",
+          "notebook_path": "...",
+          "matched_coverage_file": "notebooks/<X>.py",
+          "covered_lines": N,
+          "total_lines": M,
+          "coverage_percent": P
+        }
+      ],
       "summary": {
-         "tasks_count": N,
-         "matched_tasks": M,
-         "unmatched_tasks": N-M,
-         "avg_coverage_percent": X.X,
-         "weighted_coverage_percent": Y.Y,
-         "covered_lines_total": A,
-         "total_lines_total": B
+        "tasks_count": N,
+        "matched_tasks": M,
+        "unmatched_tasks": N-M,
+        "avg_coverage_percent": X.X,
+        "weighted_coverage_percent": Y.Y,
+        "weighted_assuming_equal_task_size": Z.Z,
+        "covered_lines_total": A,
+        "total_lines_total": B
       }
     }
   ]
@@ -26,7 +36,7 @@ Salida:
 Uso:
  python .github/scripts/coverage_per_job.py --coverage-xml coverage.xml --jobs-dir jobs --output coverage_per_job.json
 
-Requerimientos: pyyaml
+Requiere: pyyaml
 """
 
 import argparse
@@ -35,19 +45,24 @@ import json
 from pathlib import Path
 import yaml
 import sys
-import re
 from statistics import mean
 
-# ---------- parser robusto de coverage.xml ----------
-def strip_ns(tag):
+# -------------------- Coverage XML parsing --------------------
+
+def strip_ns(tag: str) -> str:
     return tag.split("}")[-1] if "}" in tag else tag
 
-def parse_coverage_xml(path):
+def parse_coverage_xml(path: str):
+    """
+    Parse coverage.xml robustly.
+    Returns dict: {filename_key: {"covered":int,"total":int,"pct":float}}
+    filename_key is exactly what appears in coverage.xml.
+    """
     tree = ET.parse(path)
     root = tree.getroot()
     files = {}
 
-    def count_lines_from_line_elems(line_elems):
+    def count_lines(line_elems):
         total = 0
         covered = 0
         for line in line_elems:
@@ -57,24 +72,29 @@ def parse_coverage_xml(path):
                 if hits is not None and int(hits) > 0:
                     covered += 1
             except Exception:
-                if str(hits).lower() in ("true","yes","1"):
+                if str(hits).lower() in ("true", "yes", "1"):
                     covered += 1
         return covered, total
 
-    # 1) <file> con <line/>
+    # 1) <file name="..."><line .../></file>
     for file_el in root.findall(".//file"):
         name = file_el.get("name") or file_el.get("filename")
         if not name:
             continue
         line_elems = file_el.findall(".//line")
-        covered, total = count_lines_from_line_elems(line_elems)
-        files[name] = {"covered": covered, "total": total, "pct": round((covered/total)*100,2) if total>0 else 0.0}
+        covered, total = count_lines(line_elems)
+        files[name] = {
+            "covered": covered,
+            "total": total,
+            "pct": round((covered / total) * 100, 2) if total > 0 else 0.0
+        }
 
-    # 2) <class> variantes
+    # 2) <class filename="..."> with attrs or nested lines
     for class_el in root.findall(".//class"):
         filename = class_el.get("filename") or class_el.get("name")
         if not filename:
             continue
+
         covered_attr = class_el.get("covered")
         total_attr = class_el.get("lines") or class_el.get("statements")
         if covered_attr is not None and total_attr is not None:
@@ -82,34 +102,66 @@ def parse_coverage_xml(path):
                 covered = int(covered_attr)
                 total = int(total_attr)
             except Exception:
-                covered = 0; total = 0
+                covered, total = 0, 0
         else:
             line_elems = class_el.findall(".//line")
-            covered, total = count_lines_from_line_elems(line_elems)
-        prev = files.get(filename)
-        if prev and prev.get("total",0) >= total:
-            continue
-        files[filename] = {"covered": covered, "total": total, "pct": round((covered/total)*100,2) if total>0 else 0.0}
+            covered, total = count_lines(line_elems)
 
-    # 3) explorar otros nodos por si contienen filename *.py
+        prev = files.get(filename)
+        if prev and prev.get("total", 0) >= total:
+            continue
+
+        files[filename] = {
+            "covered": covered,
+            "total": total,
+            "pct": round((covered / total) * 100, 2) if total > 0 else 0.0
+        }
+
+    # 3) Fallback: scan any node that has filename-like attrs ending in .py
     for el in root.iter():
-        tag = strip_ns(el.tag)
-        for attr_name in ("filename","name","file","path"):
+        for attr_name in ("filename", "name", "file", "path"):
             val = el.get(attr_name)
-            if val and isinstance(val,str) and val.lower().endswith(".py") and val not in files:
+            if val and isinstance(val, str) and val.lower().endswith(".py") and val not in files:
                 line_elems = el.findall(".//line")
-                covered, total = count_lines_from_line_elems(line_elems)
-                files[val] = {"covered": covered, "total": total, "pct": round((covered/total)*100,2) if total>0 else 0.0}
+                covered, total = count_lines(line_elems)
+                files[val] = {
+                    "covered": covered,
+                    "total": total,
+                    "pct": round((covered / total) * 100, 2) if total > 0 else 0.0
+                }
 
     return files
 
-# ---------- extraer tasks de jobs YAML ----------
-def discover_tasks_from_jobs(jobs_dir):
+def build_basename_map(files_map):
+    """basename(lower) -> list(original keys)"""
+    bmap = {}
+    for k in files_map.keys():
+        b = Path(k).name.lower()
+        bmap.setdefault(b, []).append(k)
+    return bmap
+
+# -------------------- Jobs YAML parsing --------------------
+
+def discover_tasks_from_jobs(jobs_dir: str):
+    """
+    Extract tasks from YAMLs under jobs_dir.
+
+    Expected structure (your example):
+    resources:
+      jobs:
+        WF_ADB:
+          name: WF_ADB
+          tasks:
+            - task_key: ingest_circuits
+              notebook_task:
+                notebook_path: /notebooks/Ingest_circuits
+    """
     out = []
     p = Path(jobs_dir)
     if not p.exists():
         print(f"ERROR: jobs_dir '{jobs_dir}' does not exist.", file=sys.stderr)
         return out
+
     yaml_files = sorted(list(p.rglob("*.yml")) + list(p.rglob("*.yaml")))
     for yf in yaml_files:
         try:
@@ -118,8 +170,10 @@ def discover_tasks_from_jobs(jobs_dir):
         except Exception as e:
             print(f"WARN: cannot parse YAML {yf}: {e}", file=sys.stderr)
             continue
+
         resources = doc.get("resources") or {}
         jobs_section = resources.get("jobs") or {}
+
         if isinstance(jobs_section, dict) and jobs_section:
             for job_id, job_data in jobs_section.items():
                 job_name = job_data.get("name") or job_id
@@ -136,6 +190,7 @@ def discover_tasks_from_jobs(jobs_dir):
                         "notebook_path": str(nb_path) if nb_path else ""
                     })
         else:
+            # fallback: top-level tasks (just in case)
             tasks = doc.get("tasks") or []
             for task in tasks:
                 task_key = task.get("task_key") or ""
@@ -148,73 +203,111 @@ def discover_tasks_from_jobs(jobs_dir):
                     "task_key": task_key,
                     "notebook_path": str(nb_path) if nb_path else ""
                 })
+
     return out
 
-# ---------- candidates y matching ----------
-def generate_test_candidates_for_task(task_key):
-    tk = str(task_key).strip().lower().replace(" ", "_")
-    if not tk:
+# -------------------- Notebook matching (uses notebook_path) --------------------
+
+def notebook_candidates_from_notebook_path(notebook_path: str):
+    """
+    Convert Databricks notebook_path to candidate .py filenames.
+    Examples:
+      /Workspace/.../notebooks/Ingest_testing  -> notebooks/Ingest_testing.py
+      /notebooks/Ingest_testing               -> notebooks/Ingest_testing.py
+      notebooks/Ingest_testing                -> notebooks/Ingest_testing.py
+    """
+    if not notebook_path:
         return []
-    variants = []
-    variants.append(f"test_{tk}.py")
-    variants.append(f"test_{tk.replace('_','-')}.py")
-    variants.append(f"test_{tk.replace('-','_')}.py")
-    variants.append(f"{tk}.py")
-    seen = set(); out=[]
-    for v in variants:
-        lv = v.lower()
-        if lv not in seen:
-            seen.add(lv); out.append(lv)
-    return out
+    p = notebook_path.replace("\\", "/").strip()
+    base = p.split("/")[-1]  # Ingest_testing
+    if not base:
+        return []
+    base_py = base if base.lower().endswith(".py") else (base + ".py")
+    return [f"notebooks/{base_py}", base_py]
 
-def build_basename_map(files_map):
-    bmap = {}
-    for k in files_map.keys():
-        b = Path(k).name.lower()
-        bmap.setdefault(b, []).append(k)
-    return bmap
+def find_match_for_notebook_path(notebook_path: str, files_map, basename_map):
+    """
+    Match coverage entry based on notebook_path-derived candidates.
+    Match order:
+      1) basename exact (Ingest_testing.py)
+      2) endswith('notebooks/Ingest_testing.py') for absolute paths in coverage.xml
+    If multiple candidates map to multiple entries, choose highest pct.
+    """
+    cands = notebook_candidates_from_notebook_path(notebook_path)
+    if not cands:
+        return (None, 0, 0, 0.0)
 
-def find_best_match_for_task(task_key, files_map, basename_map):
-    candidates = generate_test_candidates_for_task(task_key)
-    best = None; best_pct = -1.0; best_info = (None,0,0,0.0)
-    for cand in candidates:
-        if cand in basename_map:
-            for orig_key in basename_map[cand]:
-                info = files_map.get(orig_key) or files_map.get(orig_key.replace("\\","/"))
+    # 1) basename exact
+    best = (None, 0, 0, 0.0)
+    best_pct = -1.0
+    for cand in cands:
+        b = Path(cand).name.lower()
+        if b in basename_map:
+            for orig_key in basename_map[b]:
+                info = files_map.get(orig_key) or files_map.get(orig_key.replace("\\", "/"))
                 if info:
                     pct = info.get("pct", 0.0)
                     if pct > best_pct:
                         best_pct = pct
-                        best = orig_key
-                        best_info = (orig_key, info.get("covered",0), info.get("total",0), info.get("pct",0.0))
-    return best_info
+                        best = (orig_key, info.get("covered", 0), info.get("total", 0), pct)
+    if best[0]:
+        return best
 
-# ---------- agrupación por job y cálculo de KPI ----------
+    # 2) endswith full candidate path
+    for cand in cands:
+        cand_norm = cand.replace("\\", "/").lower()
+        for orig_key, info in files_map.items():
+            ok = orig_key.replace("\\", "/").lower()
+            if ok.endswith(cand_norm):
+                pct = info.get("pct", 0.0)
+                if pct > best_pct:
+                    best_pct = pct
+                    best = (orig_key, info.get("covered", 0), info.get("total", 0), pct)
+
+    return best
+
+# -------------------- Summary --------------------
+
 def compute_job_summary(tasks_list):
     """
-    tasks_list: lista de dicts con keys: task_key, notebook_path, matched_coverage_file, covered_lines, total_lines, coverage_percent
-    Devuelve un summary dict con los KPIs descritos.
+    Summary KPIs:
+      - avg_coverage_percent: simple avg of tasks (includes 0 for unmatched)
+      - weighted_coverage_percent: covered_total/total_total over measured tasks
+      - weighted_assuming_equal_task_size: penalize unmatched tasks assuming avg measured size
     """
     tasks_count = len(tasks_list)
     matched = sum(1 for t in tasks_list if t.get("matched_coverage_file"))
     unmatched = tasks_count - matched
-    pct_list = [t.get("coverage_percent",0.0) for t in tasks_list]
-    # avg simple (incluye ceros)
-    avg_coverage = round(mean(pct_list),2) if pct_list else 0.0
-    covered_total = sum(t.get("covered_lines",0) for t in tasks_list)
-    total_total = sum(t.get("total_lines",0) for t in tasks_list)
-    weighted = round((covered_total / total_total)*100,2) if total_total>0 else 0.0
+
+    pct_list = [t.get("coverage_percent", 0.0) for t in tasks_list]
+    avg_coverage = round(mean(pct_list), 2) if pct_list else 0.0
+
+    covered_total = sum(t.get("covered_lines", 0) for t in tasks_list)
+    total_total = sum(t.get("total_lines", 0) for t in tasks_list)
+    weighted = round((covered_total / total_total) * 100, 2) if total_total > 0 else 0.0
+
+    totals_for_avg = [t.get("total_lines", 0) for t in tasks_list if t.get("total_lines", 0) > 0]
+    avg_total_measured = mean(totals_for_avg) if totals_for_avg else 0.0
+
+    if avg_total_measured <= 0:
+        weighted_assumed = avg_coverage
+    else:
+        assumed_total = avg_total_measured * tasks_count
+        weighted_assumed = round((covered_total / assumed_total) * 100, 2) if assumed_total > 0 else 0.0
+
     return {
         "tasks_count": tasks_count,
         "matched_tasks": matched,
         "unmatched_tasks": unmatched,
         "avg_coverage_percent": avg_coverage,
         "weighted_coverage_percent": weighted,
+        "weighted_assuming_equal_task_size": weighted_assumed,
         "covered_lines_total": covered_total,
         "total_lines_total": total_total
     }
 
-# ---------- main ----------
+# -------------------- Main --------------------
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--coverage-xml", required=True)
@@ -223,16 +316,11 @@ def main():
     args = parser.parse_args()
 
     files_map = parse_coverage_xml(args.coverage_xml)
-    print(f"DEBUG: parsed {len(files_map)} coverage entries from {args.coverage_xml}")
-    for k in list(files_map.keys())[:80]:
-        print("DEBUG_KEY:", k)
-
     basename_map = build_basename_map(files_map)
 
     tasks = discover_tasks_from_jobs(args.jobs_dir)
-    print(f"DEBUG: discovered {len(tasks)} tasks in jobs YAMLs")
 
-    # group tasks by job_id
+    # group by job_id
     jobs = {}
     for t in tasks:
         job_id = t["job_id"]
@@ -243,7 +331,11 @@ def main():
                 "job_file": t["job_file"],
                 "tasks": []
             }
-        chosen_key, covered, total, pct = find_best_match_for_task(t["task_key"], files_map, basename_map)
+
+        chosen_key, covered, total, pct = find_match_for_notebook_path(
+            t["notebook_path"], files_map, basename_map
+        )
+
         jobs[job_id]["tasks"].append({
             "task_key": t["task_key"],
             "notebook_path": t["notebook_path"],
@@ -255,17 +347,14 @@ def main():
 
     per_job = []
     for job in jobs.values():
-        summary = compute_job_summary(job["tasks"])
         job_entry = job.copy()
-        job_entry["summary"] = summary
+        job_entry["summary"] = compute_job_summary(job_entry["tasks"])
         per_job.append(job_entry)
 
     with open(args.output, "w", encoding="utf-8") as fh:
         json.dump({"per_job": per_job}, fh, indent=2, ensure_ascii=False)
 
-    print(f"WROTE {len(per_job)} entries to {args.output}")
-    for j in per_job:
-        print(f"JOB {j['job_id']}: tasks={j['summary']['tasks_count']} avg_pct={j['summary']['avg_coverage_percent']} weighted_pct={j['summary']['weighted_coverage_percent']}")
+    print(f"WROTE {len(per_job)} jobs to {args.output}")
 
 if __name__ == "__main__":
     main()
