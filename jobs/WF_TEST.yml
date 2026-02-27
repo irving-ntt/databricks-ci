@@ -21,7 +21,7 @@ resources:
           min_retry_interval_millis: 0
           timeout_seconds: 3600
           description: Ingesta del notebook de circuits
-        - task_key: Ingest_races
+        - task_key: ingest_testing
           depends_on:
             - task_key: ingest_circuits
           notebook_task:
@@ -35,7 +35,7 @@ resources:
           max_retries: 2
           min_retry_interval_millis: 0
           timeout_seconds: 3600
-          description: Ingesta del notebook de races
+          description: Ingesta del notebook
       tags:
         cluster_used: Cluster_SD
         created_by: github_actions
