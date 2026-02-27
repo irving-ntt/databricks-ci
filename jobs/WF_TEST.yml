@@ -25,7 +25,7 @@ resources:
           depends_on:
             - task_key: ingest_circuits
           notebook_task:
-            notebook_path: /Workspace/Users/irving_garcia7@outlook.com/databricks-ci/notebooks/Ingest_racing
+            notebook_path: /Workspace/Users/irving_garcia7@outlook.com/databricks-ci/notebooks/ingest_racing_logic
             base_parameters:
               container: raw
               catalogo: workspace
