@@ -45,12 +45,3 @@ jobs:
           name: coverage-per-job-${{ github.run_id }}
           path: coverage_per_job.json
           retention-days: 90
-
-      - name: (Opcional) Post coverage summary to PR
-        if: always()
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          header: "Coverage por Job"
-          message: |
-            $(cat coverage_per_job.json || echo "No coverage_per_job.json available")
