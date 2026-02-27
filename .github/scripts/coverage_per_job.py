@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 """
-coverage_per_job.py (agrupa tasks por job)
+coverage_per_job.py (agrupa tasks por job + KPI summary por job)
 
 Salida:
 {
   "per_job": [
     {
-      "job_id": "WF_ADB",
-      "job_name": "WF_ADB",
-      "job_file": "jobs/WF_ADB.yml",
-      "tasks": [
-        { "task_key": "...", "notebook_path": "...", "matched_coverage_file": "...",
-          "covered_lines": N, "total_lines": M, "coverage_percent": P },
-        ...
-      ]
-    },
-    ...
+      "job_id": "...",
+      "job_name": "...",
+      "job_file": "...",
+      "tasks": [ ... ],
+      "summary": {
+         "tasks_count": N,
+         "matched_tasks": M,
+         "unmatched_tasks": N-M,
+         "avg_coverage_percent": X.X,
+         "weighted_coverage_percent": Y.Y,
+         "covered_lines_total": A,
+         "total_lines_total": B
+      }
+    }
   ]
 }
 
@@ -32,6 +36,7 @@ from pathlib import Path
 import yaml
 import sys
 import re
+from statistics import mean
 
 # ---------- parser robusto de coverage.xml ----------
 def strip_ns(tag):
@@ -89,7 +94,6 @@ def parse_coverage_xml(path):
     # 3) explorar otros nodos por si contienen filename *.py
     for el in root.iter():
         tag = strip_ns(el.tag)
-        # evitar reprocese los ya tratados
         for attr_name in ("filename","name","file","path"):
             val = el.get(attr_name)
             if val and isinstance(val,str) and val.lower().endswith(".py") and val not in files:
@@ -146,7 +150,7 @@ def discover_tasks_from_jobs(jobs_dir):
                 })
     return out
 
-# ---------- candidates y matching (exacto: tests/test_<task>.py) ----------
+# ---------- candidates y matching ----------
 def generate_test_candidates_for_task(task_key):
     tk = str(task_key).strip().lower().replace(" ", "_")
     if not tk:
@@ -185,7 +189,32 @@ def find_best_match_for_task(task_key, files_map, basename_map):
                         best_info = (orig_key, info.get("covered",0), info.get("total",0), info.get("pct",0.0))
     return best_info
 
-# ---------- main: agrupar por job ----------
+# ---------- agrupación por job y cálculo de KPI ----------
+def compute_job_summary(tasks_list):
+    """
+    tasks_list: lista de dicts con keys: task_key, notebook_path, matched_coverage_file, covered_lines, total_lines, coverage_percent
+    Devuelve un summary dict con los KPIs descritos.
+    """
+    tasks_count = len(tasks_list)
+    matched = sum(1 for t in tasks_list if t.get("matched_coverage_file"))
+    unmatched = tasks_count - matched
+    pct_list = [t.get("coverage_percent",0.0) for t in tasks_list]
+    # avg simple (incluye ceros)
+    avg_coverage = round(mean(pct_list),2) if pct_list else 0.0
+    covered_total = sum(t.get("covered_lines",0) for t in tasks_list)
+    total_total = sum(t.get("total_lines",0) for t in tasks_list)
+    weighted = round((covered_total / total_total)*100,2) if total_total>0 else 0.0
+    return {
+        "tasks_count": tasks_count,
+        "matched_tasks": matched,
+        "unmatched_tasks": unmatched,
+        "avg_coverage_percent": avg_coverage,
+        "weighted_coverage_percent": weighted,
+        "covered_lines_total": covered_total,
+        "total_lines_total": total_total
+    }
+
+# ---------- main ----------
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--coverage-xml", required=True)
@@ -195,7 +224,6 @@ def main():
 
     files_map = parse_coverage_xml(args.coverage_xml)
     print(f"DEBUG: parsed {len(files_map)} coverage entries from {args.coverage_xml}")
-    # debug sample keys
     for k in list(files_map.keys())[:80]:
         print("DEBUG_KEY:", k)
 
@@ -215,7 +243,6 @@ def main():
                 "job_file": t["job_file"],
                 "tasks": []
             }
-        # find match for this task
         chosen_key, covered, total, pct = find_best_match_for_task(t["task_key"], files_map, basename_map)
         jobs[job_id]["tasks"].append({
             "task_key": t["task_key"],
@@ -226,14 +253,19 @@ def main():
             "coverage_percent": pct
         })
 
-    per_job = list(jobs.values())
+    per_job = []
+    for job in jobs.values():
+        summary = compute_job_summary(job["tasks"])
+        job_entry = job.copy()
+        job_entry["summary"] = summary
+        per_job.append(job_entry)
 
     with open(args.output, "w", encoding="utf-8") as fh:
         json.dump({"per_job": per_job}, fh, indent=2, ensure_ascii=False)
 
     print(f"WROTE {len(per_job)} entries to {args.output}")
     for j in per_job:
-        print(f"JOB {j['job_id']}: {len(j['tasks'])} tasks")
+        print(f"JOB {j['job_id']}: tasks={j['summary']['tasks_count']} avg_pct={j['summary']['avg_coverage_percent']} weighted_pct={j['summary']['weighted_coverage_percent']}")
 
 if __name__ == "__main__":
     main()
