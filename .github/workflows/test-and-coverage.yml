@@ -39,9 +39,24 @@ jobs:
         run: |
           python .github/scripts/coverage_per_job.py --coverage-xml coverage.xml --jobs-dir jobs --output coverage_per_job.json
 
+      - name: Generate kpi_jobs.csv
+        run: |
+            python .github/scripts/kpi_from_coverage_per_job.py \
+            --input coverage_per_job.json \
+            --out-csv kpi_jobs.csv \
+            --out-json kpi_jobs.json
+      
       - name: Upload per-job coverage artifact
         uses: actions/upload-artifact@v4
         with:
           name: coverage-per-job-${{ github.run_id }}
           path: coverage_per_job.json
           retention-days: 90
+
+      - name: Upload KPI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kpis-${{ github.run_id }}
+          path: |
+            kpi_jobs.csv
+            kpi_jobs.json
