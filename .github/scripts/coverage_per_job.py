@@ -27,7 +27,7 @@ def parse_coverage_xml(path):
 
 def calculate_per_job(files_map, jobs_dir):
     results = []
-    jobs = list(Path(jobs_dir).glob("*.py"))
+    jobs = list(Path(jobs_dir).glob("**/*.py"))
 
     for job_file in jobs:
         job_name = job_file.stem
