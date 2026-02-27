@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "notebooks"))
 
-from ingest_racing_logic import (
+from Ingest_testing import (
     get_races_schema,
     validate_csv_path,
 )
