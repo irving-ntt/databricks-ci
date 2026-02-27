@@ -3,8 +3,7 @@ from pyspark.sql.types import *
 import sys
 from pathlib import Path
 
-# Add the ETL directory to sys.path to import the helper module
-sys.path.insert(0, str(Path(__file__).parent.parent / "ETL"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "notebooks"))
 
 from ingest_racing_logic import (
     get_races_schema,
