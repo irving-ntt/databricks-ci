@@ -16,17 +16,17 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install test dependencies (no requirements.txt)
+      - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest coverage pytest-cov pyspark
+          pip install pytest coverage pytest-cov pyyaml pyspark
 
       - name: Run tests and generate coverage.xml
         run: |
           # run pytest and produce coverage.xml
-          coverage run -m pytest
-          coverage xml -o coverage.xml
-          coverage report --skip-covered || true
+          python -m coverage run --source=. -m pytest -q
+          python -m coverage xml -o coverage.xml
+          python -m coverage report -m || true
 
       - name: Ensure script exists
         run: |
@@ -45,3 +45,12 @@ jobs:
           name: coverage-per-job-${{ github.run_id }}
           path: coverage_per_job.json
           retention-days: 90
+
+      - name: (Opcional) Post coverage summary to PR
+        if: always()
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          header: "Coverage por Job"
+          message: |
+            $(cat coverage_per_job.json || echo "No coverage_per_job.json available")
