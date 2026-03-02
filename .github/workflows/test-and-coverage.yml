@@ -60,3 +60,16 @@ jobs:
           path: |
             kpi_jobs.csv
             kpi_jobs.json
+
+      - name: Generate notebooks coverage CSV
+        run: |
+          python .github/scripts/notebooks_coverage_csv.py \
+            --coverage-xml coverage.xml \
+            --notebooks-dir notebooks \
+            --output notebooks_coverage.csv
+
+      - name: Upload notebooks coverage CSV
+        uses: actions/upload-artifact@v4
+        with:
+          name: notebooks-coverage-${{ github.run_id }}
+          path: notebooks_coverage.csv
