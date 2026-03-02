@@ -1,0 +1,102 @@
+resources:
+  jobs:
+    WF_PATRIF_RMOV_0190_REVERSO_MOVS:
+      name: WF_PATRIF_RMOV_0190_REVERSO_MOVS
+      max_concurrent_runs: 30
+      tasks:
+        # NOTEBOOK DECISOR - Determina qué workflow hijo ejecutar
+        - task_key: NB_PATRIF_RMOV_0190_REVERSO_MOVS
+          run_if: ALL_SUCCESS
+          notebook_task:
+            notebook_path: "/Workspace/Users/irving_garcia7@outlook.com/databricks-ci/notebooks/NB_PATRIF_RMOV_0190_REVERSO_MOVS"
+            base_parameters:
+              var_tramite: ""
+              sr_etapa: ""
+              sr_instancia_proceso: ""
+              sr_usuario: ""
+              sr_id_snapshot: ""
+              sr_proceso: ""
+              sr_subproceso: ""
+              sr_folio: ""
+              sr_subetapa: ""
+              sr_actualiza: ""
+              sr_fec_acc: ""
+              sr_fec_liq: ""
+              sr_paso: ""
+            source: WORKSPACE
+          existing_cluster_id: ID_CLUSTER
+        
+        # CONDICIÓN 1: Subproceso 363 (Transferencias FOVISSSTE)
+        - task_key: CONDICION_TRNS_FOV
+          depends_on:
+            - task_key: NB_PATRIF_RMOV_0190_REVERSO_MOVS
+          run_if: ALL_SUCCESS
+          condition_task:
+            op: EQUAL_TO
+            left: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.job_target}}"
+            right: JQ_PATRIF_RMOV_0100_TRNS_FOV
+        
+        # CONDICIÓN 2: Subprocesos 364, 365, 368 (Transferencias Infonavit)
+        - task_key: CONDICION_TRANSF
+          depends_on:
+            - task_key: NB_PATRIF_RMOV_0190_REVERSO_MOVS
+          run_if: ALL_SUCCESS
+          condition_task:
+            op: EQUAL_TO
+            left: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.job_target}}"
+            right: JQ_PATRIF_RMOV_0100_TRANSF
+        
+        # WORKFLOW HIJO 1: Transferencias FOVISSSTE (subproceso 363)
+        - task_key: WF_PATRIF_RMOV_0100_TRNS_FOV
+          depends_on:
+            - task_key: CONDICION_TRNS_FOV
+              outcome: 'true'
+          run_if: ALL_SUCCESS
+          run_job_task:
+            job_id: PATRIF_RMOV_0100_TRNS_FOV_JOB_ID
+            job_parameters:
+              sr_proceso: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_proceso}}"
+              sr_subproceso: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_subproceso}}"
+              sr_folio: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_folio}}"
+              sr_subetapa: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_subetapa}}"
+              sr_usuario: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_usuario}}"
+              sr_etapa: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_etapa}}"
+              sr_instancia_proceso: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_instancia_proceso}}"
+              sr_id_snapshot: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_id_snapshot}}"
+              sr_actualiza: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_actualiza}}"
+              sr_fec_acc: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_fec_acc}}"
+              sr_fec_liq: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_fec_liq}}"
+              sr_paso: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_paso}}"
+              sr_reproceso: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_reproceso}}"
+              sr_id_archivo: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_id_archivo}}"
+        
+        # WORKFLOW HIJO 2: Transferencias Infonavit (subprocesos 364, 365, 368)
+        - task_key: WF_PATRIF_REVMOV_0100_REV_MOVS
+          depends_on:
+            - task_key: CONDICION_TRANSF
+              outcome: 'true'
+          run_if: ALL_SUCCESS
+          run_job_task:
+            job_id: PATRIF_REVMOV_0100_REV_MOVS_JOB_ID
+            job_parameters:
+              sr_proceso: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_proceso}}"
+              sr_subproceso: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_subproceso}}"
+              sr_folio: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_folio}}"
+              sr_subetapa: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_subetapa}}"
+              sr_usuario: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_usuario}}"
+              sr_etapa: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_etapa}}"
+              sr_instancia_proceso: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_instancia_proceso}}"
+              sr_id_snapshot: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_id_snapshot}}"
+              sr_actualiza: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_actualiza}}"
+              sr_fec_acc: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_fec_acc}}"
+              sr_fec_liq: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_fec_liq}}"
+              sr_paso: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_paso}}"
+              sr_reproceso: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_reproceso}}"
+              sr_id_archivo: "{{tasks.NB_PATRIF_RMOV_0190_REVERSO_MOVS.values.sr_id_archivo}}"
+      
+      tags:
+        MODULO: "PATRIF"
+        SUBMODULO: "REVERSO_MOVS"
+        TIPO: "WORKFLOW_PADRE"
+      queue:
+        enabled: true
