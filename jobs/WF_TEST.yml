@@ -1,0 +1,43 @@
+resources:
+  jobs:
+    WF_TEST:
+      name: WF_TEST
+      timeout_seconds: 7200
+      schedule:
+        quartz_cron_expression: 0 0 8 * * ?
+        timezone_id: America/Lima
+        pause_status: PAUSED
+      tasks:
+        - task_key: ingest_circuits
+          notebook_task:
+            notebook_path: /Workspace/Users/irving_garcia7@outlook.com/databricks-ci/notebooks/Ingest_circuits
+            base_parameters:
+              container: raw
+              catalogo: workspace
+              esquema: bronze
+            source: WORKSPACE
+          existing_cluster_id: 0212-223952-f5sty5df
+          max_retries: 2
+          min_retry_interval_millis: 0
+          timeout_seconds: 3600
+          description: Ingesta del notebook de circuits
+        - task_key: ingest_testing
+          depends_on:
+            - task_key: ingest_circuits
+          notebook_task:
+            notebook_path: /Workspace/Users/irving_garcia7@outlook.com/databricks-ci/notebooks/Ingest_testing
+            base_parameters:
+              container: raw
+              catalogo: workspace
+              esquema: bronze
+            source: WORKSPACE
+          existing_cluster_id: 0212-223952-f5sty5df
+          max_retries: 2
+          min_retry_interval_millis: 0
+          timeout_seconds: 3600
+          description: Ingesta del notebook
+      tags:
+        cluster_used: Cluster_SD
+        created_by: github_actions
+        environment: production
+        project: automated_deployment

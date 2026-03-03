@@ -1,0 +1,75 @@
+name: Test & Coverage per Job
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  test-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest coverage pytest-cov pyyaml pyspark
+
+      - name: Run tests and generate coverage.xml
+        run: |
+          # run pytest and produce coverage.xml
+          python -m coverage run --source=. -m pytest -q
+          python -m coverage xml -o coverage.xml
+          python -m coverage report -m || true
+
+      - name: Ensure script exists
+        run: |
+          if [ ! -f .github/scripts/coverage_per_job.py ]; then
+            echo "ERROR: .github/scripts/coverage_per_job.py not found" >&2
+            exit 1
+          fi
+
+      - name: Generate per-job coverage JSON
+        run: |
+          python .github/scripts/coverage_per_job.py --coverage-xml coverage.xml --jobs-dir jobs --output coverage_per_job.json
+
+      - name: Generate kpi_jobs.csv
+        run: |
+            python .github/scripts/kpi_from_coverage_per_job.py \
+            --input coverage_per_job.json \
+            --out-csv kpi_jobs.csv \
+            --out-json kpi_jobs.json
+      
+      - name: Upload per-job coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-per-job-${{ github.run_id }}
+          path: coverage_per_job.json
+          retention-days: 90
+
+      - name: Upload KPI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kpis-${{ github.run_id }}
+          path: |
+            kpi_jobs.csv
+            kpi_jobs.json
+
+      - name: Generate notebooks coverage CSV
+        run: |
+          python .github/scripts/notebooks_coverage_csv.py \
+            --coverage-xml coverage.xml \
+            --notebooks-dir notebooks \
+            --output notebooks_coverage.csv
+
+      - name: Upload notebooks coverage CSV
+        uses: actions/upload-artifact@v4
+        with:
+          name: notebooks-coverage-${{ github.run_id }}
+          path: notebooks_coverage.csv

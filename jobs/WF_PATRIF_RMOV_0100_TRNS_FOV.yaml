@@ -1,0 +1,198 @@
+# Databricks Workflow - Migrado desde DataStage Sequence Job
+# Origen: JQ_PATRIF_RMOV_0100_TRNS_FOV (JQ_PATRIF_RMOV_0100_TRNS_FOV.xml)
+# Tipo: Workflow HIJO - Reverso de Movimientos Transferencias Fovissste
+# Fecha Migración: 2026-02-25
+# Subproceso: 363 (Fovissste)
+
+resources:
+  jobs:
+    WF_PATRIF_RMOV_0100_TRNS_FOV:
+      name: WF_PATRIF_RMOV_0100_TRNS_FOV
+      
+      # Configuración de concurrencia para workflow HIJO
+      max_concurrent_runs: 5
+      
+      # Timeout general del workflow (4 horas)
+      timeout_seconds: 14400
+      
+      # Configuración de notificaciones
+      email_notifications:
+        on_failure:
+          - equipo-migracion@empresa.com
+        on_success:
+          - equipo-migracion@empresa.com
+      
+      # Configuración de reintentos
+      max_retries: 2
+      retry_on_timeout: true
+      
+      # Tags para identificación
+      tags:
+        proyecto: "MIT_Fase_III"
+        tipo: "workflow_hijo"
+        proceso: "reverso_movimientos"
+        subproceso: "transferencias_fovissste"
+        origen: "JQ_PATRIF_RMOV_0100_TRNS_FOV"
+        migracion: "2026-02-25"
+      
+      # Parámetros del workflow (recibidos del padre)
+      parameters:
+        - name: p_SR_PROCESO
+          default: ""
+        - name: p_SR_SUBPROCESO
+          default: ""
+        - name: p_SR_FOLIO
+          default: ""
+        - name: p_SR_SUBETAPA
+          default: ""
+        - name: p_RUTA_TEMP
+          default: ""
+        - name: p_RUTA_INTEGRITY
+          default: ""
+        - name: p_TL_PRO_TRANS_FOVISSSTE
+          default: ""
+        - name: p_TL_MATRIZ_CONVIV
+          default: ""
+        - name: p_TL_RESPUESTA_ITGY
+          default: ""
+        - name: p_MAP_NCI_ITGY
+          default: ""
+        - name: p_TL_PRE_MOVS
+          default: ""
+        - name: p_NOM_DATASET
+          default: ""
+        - name: p_CVL_UNIDAD_NEGOCIO
+          default: ""
+        - name: p_CLV_SUFIJO_01
+          default: ""
+        - name: p_CLV_SUFIJO_02
+          default: ""
+        - name: p_CLV_SUFIJO_03
+          default: ""
+        - name: p_EXT_DS
+          default: ""
+        - name: p_EXT_DAT
+          default: ""
+        - name: p_DES_PROCESO
+          default: ""
+      
+      # Definición de tasks
+      tasks:
+        # Task 1: Extracción de Transferencias Fovissste
+        - task_key: NB_PATRIF_REVMOV_0100_EXT_TRN_FO
+          notebook_task:
+            notebook_path: "/Workspace/Users/irving_garcia7@outlook.com/databricks-ci/notebooks/NB_PATRIF_REVMOV_0100_EXT_TRN_FO"
+            base_parameters:
+              p_SR_PROCESO: "{{job.parameters.p_SR_PROCESO}}"
+              p_SR_SUBPROCESO: "{{job.parameters.p_SR_SUBPROCESO}}"
+              p_SR_FOLIO: "{{job.parameters.p_SR_FOLIO}}"
+              p_TL_PRO_TRANS_FOVISSSTE: "{{job.parameters.p_TL_PRO_TRANS_FOVISSSTE}}"
+              p_TL_MATRIZ_CONVIV: "{{job.parameters.p_TL_MATRIZ_CONVIV}}"
+              p_RUTA_TEMP: "{{job.parameters.p_RUTA_TEMP}}"
+              p_CVL_UNIDAD_NEGOCIO: "{{job.parameters.p_CVL_UNIDAD_NEGOCIO}}"
+              p_NOM_DATASET: "{{job.parameters.p_NOM_DATASET}}"
+              p_CLV_SUFIJO_01: "{{job.parameters.p_CLV_SUFIJO_01}}"
+              p_EXT_DS: "{{job.parameters.p_EXT_DS}}"
+          existing_cluster_id: "{{cluster_id}}"
+          timeout_seconds: 3600
+          max_retries: 2
+          retry_on_timeout: true
+          libraries:
+            - pypi:
+                package: "pandas"
+            - pypi:
+                package: "pyspark"
+        
+        # Task 2: Desmembramiento NCI
+        - task_key: NB_PATRIF_REVMOV_0200_DESM_NCI
+          depends_on:
+            - task_key: NB_PATRIF_REVMOV_0100_EXT_TRN_FO
+              outcome: "success"
+          notebook_task:
+            notebook_path: "/Workspace/Users/irving_garcia7@outlook.com/databricks-ci/notebooks/NB_PATRIF_REVMOV_0200_DESM_NCI"
+            base_parameters:
+              p_SR_PROCESO: "{{job.parameters.p_SR_PROCESO}}"
+              p_SR_SUBPROCESO: "{{job.parameters.p_SR_SUBPROCESO}}"
+              p_SR_FOLIO: "{{job.parameters.p_SR_FOLIO}}"
+              p_RUTA_TEMP: "{{job.parameters.p_RUTA_TEMP}}"
+              p_NOM_DATASET: "{{job.parameters.p_NOM_DATASET}}"
+              p_CVL_UNIDAD_NEGOCIO: "{{job.parameters.p_CVL_UNIDAD_NEGOCIO}}"
+              p_TL_MATRIZ_CONVIV: "{{job.parameters.p_TL_MATRIZ_CONVIV}}"
+              p_MAP_NCI_ITGY: "{{job.parameters.p_MAP_NCI_ITGY}}"
+              p_CLV_SUFIJO_01: "{{job.parameters.p_CLV_SUFIJO_01}}"
+              p_CLV_SUFIJO_02: "{{job.parameters.p_CLV_SUFIJO_02}}"
+              p_CLV_SUFIJO_03: "{{job.parameters.p_CLV_SUFIJO_03}}"
+              p_EXT_DS: "{{job.parameters.p_EXT_DS}}"
+              p_DES_PROCESO: "{{job.parameters.p_DES_PROCESO}}"
+          existing_cluster_id: "{{cluster_id}}"
+          timeout_seconds: 3600
+          max_retries: 2
+          retry_on_timeout: true
+          libraries:
+            - pypi:
+                package: "pandas"
+            - pypi:
+                package: "pyspark"
+        
+        # Task 3: Archivos Integrity
+        - task_key: NB_PATRIF_REVMOV_0300_ARCH_INGTY
+          depends_on:
+            - task_key: NB_PATRIF_REVMOV_0200_DESM_NCI
+              outcome: "success"
+          notebook_task:
+            notebook_path: "/Workspace/Users/irving_garcia7@outlook.com/databricks-ci/notebooks/NB_PATRIF_REVMOV_0300_ARCH_INGTY"
+            base_parameters:
+              p_SR_PROCESO: "{{job.parameters.p_SR_PROCESO}}"
+              p_SR_SUBPROCESO: "{{job.parameters.p_SR_SUBPROCESO}}"
+              p_SR_FOLIO: "{{job.parameters.p_SR_FOLIO}}"
+              p_RUTA_TEMP: "{{job.parameters.p_RUTA_TEMP}}"
+              p_RUTA_INTEGRITY: "{{job.parameters.p_RUTA_INTEGRITY}}"
+              p_NOM_DATASET: "{{job.parameters.p_NOM_DATASET}}"
+              p_TL_RESPUESTA_ITGY: "{{job.parameters.p_TL_RESPUESTA_ITGY}}"
+              p_CVL_UNIDAD_NEGOCIO: "{{job.parameters.p_CVL_UNIDAD_NEGOCIO}}"
+              p_CLV_SUFIJO_01: "{{job.parameters.p_CLV_SUFIJO_01}}"
+              p_CLV_SUFIJO_02: "{{job.parameters.p_CLV_SUFIJO_02}}"
+              p_CLV_SUFIJO_03: "{{job.parameters.p_CLV_SUFIJO_03}}"
+              p_EXT_DS: "{{job.parameters.p_EXT_DS}}"
+              p_EXT_DAT: "{{job.parameters.p_EXT_DAT}}"
+              p_TL_MATRIZ_CONVIV: "{{job.parameters.p_TL_MATRIZ_CONVIV}}"
+              p_MAP_NCI_ITGY: "{{job.parameters.p_MAP_NCI_ITGY}}"
+          existing_cluster_id: "{{cluster_id}}"
+          timeout_seconds: 3600
+          max_retries: 2
+          retry_on_timeout: true
+          libraries:
+            - pypi:
+                package: "pandas"
+            - pypi:
+                package: "pyspark"
+        
+        # Task 4: Reverso de Movimientos (Final)
+        - task_key: NB_PATRIF_REVMOV_0500_REV_MOVS
+          depends_on:
+            - task_key: NB_PATRIF_REVMOV_0300_ARCH_INGTY
+              outcome: "success"
+          notebook_task:
+            notebook_path: "/Workspace/Users/irving_garcia7@outlook.com/databricks-ci/notebooks/NB_PATRIF_REVMOV_0500_REV_MOVS"
+            base_parameters:
+              p_SR_PROCESO: "{{job.parameters.p_SR_PROCESO}}"
+              p_SR_SUBPROCESO: "{{job.parameters.p_SR_SUBPROCESO}}"
+              p_SR_FOLIO: "{{job.parameters.p_SR_FOLIO}}"
+              p_RUTA_TEMP: "{{job.parameters.p_RUTA_TEMP}}"
+              p_TL_PRE_MOVS: "{{job.parameters.p_TL_PRE_MOVS}}"
+              p_NOM_DATASET: "{{job.parameters.p_NOM_DATASET}}"
+              p_CVL_UNIDAD_NEGOCIO: "{{job.parameters.p_CVL_UNIDAD_NEGOCIO}}"
+              p_CLV_SUFIJO_01: "{{job.parameters.p_CLV_SUFIJO_01}}"
+              p_EXT_DS: "{{job.parameters.p_EXT_DS}}"
+          existing_cluster_id: "{{cluster_id}}"
+          timeout_seconds: 3600
+          max_retries: 2
+          retry_on_timeout: true
+          libraries:
+            - pypi:
+                package: "pandas"
+            - pypi:
+                package: "pyspark"
+      
+      # Configuración de formato
+      format: MULTI_TASK
