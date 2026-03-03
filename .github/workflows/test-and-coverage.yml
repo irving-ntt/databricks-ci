@@ -66,7 +66,6 @@ jobs:
           python .github/scripts/notebooks_coverage_csv.py \
             --coverage-xml coverage.xml \
             --notebooks-dir notebooks \
-            --tests-dir tests \
             --output notebooks_coverage.csv
 
       - name: Upload notebooks coverage CSV
